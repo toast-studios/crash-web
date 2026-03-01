@@ -3,9 +3,7 @@
 
 import type Redis from 'ioredis';
 import {
-  MATCHMAKING_TIMEOUT_MS,
   MATCHMAKING_POLL_INTERVAL_MS,
-  MIN_REAL_PLAYERS,
   TOTAL_PLAYERS,
   BET_AMOUNT,
 } from '../../../shared/constants';
@@ -83,7 +81,7 @@ export class MatchmakingService {
     const position = await this.getQueuePosition(userId);
     this.connections.send(userId, {
       type: 'queue_status',
-      payload: { position, estimated_wait_ms: Math.max(0, MATCHMAKING_TIMEOUT_MS - 0) },
+      payload: { position, estimated_wait_ms: 0 },
     });
   }
 
@@ -99,6 +97,7 @@ export class MatchmakingService {
 
   /**
    * Process the queue — called every MATCHMAKING_POLL_INTERVAL_MS.
+   * Only creates a match when we have exactly TOTAL_PLAYERS real humans.
    */
   private async processQueue(): Promise<void> {
     if (this.redis.status !== 'ready') return; // skip if Redis not connected
@@ -117,31 +116,19 @@ export class MatchmakingService {
 
       if (queue.length === 0) return;
 
-      // If we have enough for a full room (10 players), match immediately
-      if (queue.length >= TOTAL_PLAYERS) {
-        const batch = queue.slice(0, TOTAL_PLAYERS);
+      // Create match only when we have enough real players
+      while (queue.length >= TOTAL_PLAYERS) {
+        const batch = queue.splice(0, TOTAL_PLAYERS);
         await this.createMatch(batch.map(e => e.userId));
-        return;
       }
 
-      // Check if oldest entry has waited long enough
-      const now = Date.now();
-      const oldestWait = now - queue[0].joinedAt;
-
-      if (oldestWait >= MATCHMAKING_TIMEOUT_MS && queue.length >= MIN_REAL_PLAYERS) {
-        // Create room with available players + bot backfill
-        await this.createMatch(queue.map(e => e.userId));
-        return;
-      }
-
-      // Send queue updates to all waiting players
+      // Send queue updates to remaining waiting players
       for (let i = 0; i < queue.length; i++) {
-        const waitMs = now - queue[i].joinedAt;
         this.connections.send(queue[i].userId, {
           type: 'queue_status',
           payload: {
             position: i + 1,
-            estimated_wait_ms: Math.max(0, MATCHMAKING_TIMEOUT_MS - waitMs),
+            estimated_wait_ms: 0,
           },
         });
       }

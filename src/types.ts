@@ -2,13 +2,11 @@
 // Re-export shared types + client-only types
 
 export type {
-  BotPersonality,
   PlayerStatus,
   GamePhase,
   Player,
   HeatState,
   FeedMessage,
-  BotDecision,
   // WebSocket protocol types
   ClientMessage,
   ServerMessage,
@@ -50,13 +48,10 @@ export interface GameState {
   feedMessages: import('../shared/types').FeedMessage[];
 
   // Actions
-  tick: () => void;
   useCool: () => void;
   useBoost: () => void;
   exitRound: () => void;
-  startRound: () => void;
   resetLobby: () => void;
-  startCountdown: () => void;
 }
 
 // Client-only: particle type for visual effects

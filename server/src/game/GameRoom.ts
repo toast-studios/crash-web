@@ -1,5 +1,5 @@
 // === HeatWave PvP — Game Room ===
-// One room = one 10-player round. Server-authoritative tick loop.
+// One room = one round. Server-authoritative tick loop.
 
 import seedrandom from 'seedrandom';
 import type { Player, FeedMessage, GamePhase, GameStatePayload } from '../../../shared/types';
@@ -7,8 +7,6 @@ import {
   calculateHeatTick,
   getSeededHeatJitter,
   isRoundOver,
-  getBotDecision,
-  resetBotCooldowns,
   rankPlayers,
 } from '../../../shared';
 import {
@@ -51,7 +49,6 @@ export class GameRoom {
   private tickCount = 0;
   private countdownRemaining = COUNTDOWN_SECONDS;
 
-  private botLastActionTimes = new Map<string, number>();
   private humanPlayerIds = new Set<string>(); // userId → playerId mapping
   private userToPlayerId = new Map<string, string>(); // userId → player.id
   private playerActionTimes = new Map<string, number[]>(); // playerId → action timestamps for rate limiting
@@ -62,7 +59,6 @@ export class GameRoom {
   constructor(
     roomId: string,
     humans: HumanPlayerEntry[],
-    bots: Player[],
     connections: ConnectionManager,
     onRoomEnd?: (roomId: string, players: Player[], elapsed: number) => void,
   ) {
@@ -71,8 +67,8 @@ export class GameRoom {
     this.onRoomEnd = onRoomEnd;
     this.rng = seedrandom(roomId);
 
-    // Build player list: humans first, then bots
-    const humanPlayers: Player[] = humans.map((h, i) => {
+    // Build player list from humans only
+    this.players = humans.map((h, i) => {
       const playerId = `human-${i}-${h.userId.slice(0, 8)}`;
       this.humanPlayerIds.add(h.userId);
       this.userToPlayerId.set(h.userId, playerId);
@@ -81,7 +77,7 @@ export class GameRoom {
         name: h.displayName,
         isHuman: true,
         isBot: false,
-        status: 'alive',
+        status: 'alive' as const,
         exitTime: null,
         boostCount: 0,
         coolCount: 0,
@@ -91,10 +87,7 @@ export class GameRoom {
       };
     });
 
-    this.players = [...humanPlayers, ...bots];
-    resetBotCooldowns(this.botLastActionTimes);
-
-    logger.info({ roomId, humanCount: humans.length, botCount: bots.length }, 'GameRoom created');
+    logger.info({ roomId, playerCount: humans.length }, 'GameRoom created');
   }
 
   getPlayerIds(): string[] {
@@ -168,23 +161,6 @@ export class GameRoom {
     // Calculate heat with seeded jitter
     const jitter = getSeededHeatJitter(this.rng);
     this.heat = calculateHeatTick(this.heat, this.elapsed, this.heatRateModifier, jitter);
-
-    // Process bot decisions
-    for (let i = 0; i < this.players.length; i++) {
-      const player = this.players[i];
-      if (!player.isBot || player.status !== 'alive') continue;
-
-      const decision = getBotDecision(
-        player,
-        this.heat,
-        this.elapsed,
-        this.players,
-        this.botLastActionTimes,
-        this.rng,
-      );
-
-      this.executeAction(i, decision.action);
-    }
 
     // Check round over
     if (isRoundOver(this.heat)) {

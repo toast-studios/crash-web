@@ -1,9 +1,8 @@
 // === Pre-Round Lobby Screen with Matchmaking ===
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
 import Animated, {
   FadeIn,
-  FadeOut,
   SlideInRight,
   useSharedValue,
   useAnimatedStyle,
@@ -18,6 +17,7 @@ import { playSound } from '../sounds/SoundManager';
 import { useGameStore } from '../store/useGameStore';
 import { StarField } from '../components/shared/StarField';
 import { COLORS } from '../constants';
+import { TOTAL_PLAYERS } from '../../shared/constants';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -29,17 +29,13 @@ export function LobbyScreen() {
   const balance = useGameStore(s => s.balance);
   const betAmount = useGameStore(s => s.betAmount);
   const stats = useGameStore(s => s.stats);
-  const startCountdown = useGameStore(s => s.startCountdown);
-  const isOnline = useGameStore(s => s.isOnline);
   const matchmakingStatus = useGameStore(s => s.matchmakingStatus);
   const joinQueue = useGameStore(s => s.joinQueue);
   const leaveQueue = useGameStore(s => s.leaveQueue);
-  const connectionStatus = useGameStore(s => s.connectionStatus);
+  const queuePosition = useGameStore(s => s.queuePosition);
 
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
-  const [visiblePlayers, setVisiblePlayers] = useState(0); // how many bots revealed
   const [searchText, setSearchText] = useState('Searching for opponents');
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const buttonScale = useSharedValue(1);
   const canAfford = balance >= betAmount;
@@ -55,39 +51,13 @@ export function LobbyScreen() {
     return () => clearInterval(interval);
   }, [lobbyPhase]);
 
-  // Matchmaking: reveal players one by one
+  // Sync online matchmaking status → lobbyPhase
   useEffect(() => {
-    if (lobbyPhase !== 'searching') return;
-
-    const bots = players.filter(p => p.isBot);
-    let revealed = 0;
-
-    const revealNext = () => {
-      revealed++;
-      setVisiblePlayers(revealed);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      void playSound('tick');
-
-      if (revealed >= bots.length) {
-        // All found
-        setTimeout(() => {
-          setLobbyPhase('found');
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }, 400);
-      } else {
-        // Random delay for next player (200-600ms)
-        const delay = 200 + Math.random() * 400;
-        timerRef.current = setTimeout(revealNext, delay);
-      }
-    };
-
-    // Start revealing after 800ms "searching" delay
-    timerRef.current = setTimeout(revealNext, 800);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [lobbyPhase, players]);
+    if (matchmakingStatus === 'found') {
+      setLobbyPhase('found');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [matchmakingStatus]);
 
   const handleFindMatch = () => {
     if (!canAfford || lobbyPhase !== 'idle') return;
@@ -97,32 +67,13 @@ export function LobbyScreen() {
     );
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    if (isOnline) {
-      joinQueue();
-      setLobbyPhase('searching');
-    } else {
-      setLobbyPhase('searching');
-      setVisiblePlayers(0);
-    }
+    joinQueue();
+    setLobbyPhase('searching');
   };
 
-  // Sync online matchmaking status → lobbyPhase
-  React.useEffect(() => {
-    if (!isOnline) return;
-    if (matchmakingStatus === 'found') {
-      setLobbyPhase('found');
-      setVisiblePlayers(players.filter(p => p.isBot).length);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [isOnline, matchmakingStatus, players]);
-
-  const handleStart = () => {
-    buttonScale.value = withSequence(
-      withSpring(0.92, { damping: 15, stiffness: 400 }),
-      withSpring(1, { damping: 10, stiffness: 200 }),
-    );
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    startCountdown();
+  const handleCancel = () => {
+    leaveQueue();
+    setLobbyPhase('idle');
   };
 
   const buttonStyle = useAnimatedStyle(() => ({
@@ -153,9 +104,6 @@ export function LobbyScreen() {
   const searchPulseStyle = useAnimatedStyle(() => ({
     opacity: searchPulse.value,
   }));
-
-  const bots = players.filter(p => p.isBot);
-  const human = players[0];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -216,7 +164,7 @@ export function LobbyScreen() {
           ) : (
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>
-                PLAYERS ({1 + visiblePlayers}/{players.length})
+                PLAYERS ({players.length}/{TOTAL_PLAYERS})
               </Text>
               {lobbyPhase === 'searching' && (
                 <Animated.View style={searchPulseStyle}>
@@ -232,43 +180,37 @@ export function LobbyScreen() {
           )}
 
           {/* Searching text */}
-          {lobbyPhase === 'searching' && visiblePlayers === 0 && (
+          {lobbyPhase === 'searching' && players.length === 0 && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.searchingContainer}>
               <Animated.Text style={[styles.searchingText, searchPulseStyle]}>
                 {searchText}
               </Animated.Text>
+              {queuePosition > 0 && (
+                <Text style={styles.queuePositionText}>
+                  Position in queue: {queuePosition}
+                </Text>
+              )}
             </Animated.View>
           )}
 
           <View style={styles.playerList}>
-            {/* Human always visible */}
-            {lobbyPhase !== 'idle' && (
-              <Animated.View
-                entering={SlideInRight.duration(300).springify().damping(14)}
-                style={[styles.playerRow, styles.playerRowHuman]}
-              >
-                <View style={styles.playerInfo}>
-                  <Text style={[styles.playerName, styles.playerNameHuman]}>
-                    {human.name}
-                  </Text>
-                  <Text style={styles.youLabel}>You</Text>
-                </View>
-                <View style={styles.readyBadge}>
-                  <Text style={styles.readyText}>READY</Text>
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Bots appear one by one */}
-            {bots.slice(0, visiblePlayers).map((player, index) => (
+            {/* Show matched players as they arrive from server */}
+            {players.map((player) => (
               <Animated.View
                 key={player.id}
                 entering={SlideInRight.duration(350).springify().damping(13)}
-                style={styles.playerRow}
+                style={[styles.playerRow, player.id === useGameStore.getState().myPlayerId && styles.playerRowHuman]}
               >
                 <View style={styles.playerInfo}>
-                  <Text style={styles.playerName}>{player.name}</Text>
-                  <Text style={styles.personality}>{player.personality}</Text>
+                  <Text style={[
+                    styles.playerName,
+                    player.id === useGameStore.getState().myPlayerId && styles.playerNameHuman,
+                  ]}>
+                    {player.name}
+                  </Text>
+                  {player.id === useGameStore.getState().myPlayerId && (
+                    <Text style={styles.youLabel}>You</Text>
+                  )}
                 </View>
                 <Animated.View
                   entering={FadeIn.delay(200).duration(200)}
@@ -279,8 +221,8 @@ export function LobbyScreen() {
               </Animated.View>
             ))}
 
-            {/* Placeholder slots for unrevealed players */}
-            {lobbyPhase === 'searching' && Array.from({ length: bots.length - visiblePlayers }).map((_, i) => (
+            {/* Placeholder slots for players not yet joined */}
+            {lobbyPhase === 'searching' && Array.from({ length: Math.max(0, TOTAL_PLAYERS - players.length) }).map((_, i) => (
               <Animated.View
                 key={`slot-${i}`}
                 style={styles.emptySlot}
@@ -312,20 +254,19 @@ export function LobbyScreen() {
         )}
 
         {lobbyPhase === 'searching' && (
-          <View style={styles.searchingButton}>
+          <Pressable onPress={handleCancel} style={styles.searchingButton}>
             <ActivityIndicator size="small" color={COLORS.accent} />
             <Text style={styles.searchingButtonText}>MATCHMAKING...</Text>
-          </View>
+          </Pressable>
         )}
 
         {lobbyPhase === 'found' && (
-          <AnimatedPressable
-            onPress={handleStart}
+          <Animated.View
             entering={FadeIn.duration(300)}
-            style={[styles.startButton, buttonStyle]}
+            style={styles.foundButton}
           >
-            <Text style={styles.startText}>BET ${betAmount} — START</Text>
-          </AnimatedPressable>
+            <Text style={styles.foundText}>MATCH FOUND — STARTING...</Text>
+          </Animated.View>
         )}
       </View>
     </SafeAreaView>
@@ -470,6 +411,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  queuePositionText: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 6,
+  },
   playerSection: {
     marginTop: 4,
   },
@@ -507,12 +454,6 @@ const styles = StyleSheet.create({
     color: COLORS.accentGlow,
     fontSize: 9,
     fontWeight: '600',
-  },
-  personality: {
-    color: COLORS.textMuted,
-    fontSize: 9,
-    fontWeight: '500',
-    textTransform: 'capitalize',
   },
   readyBadge: {
     backgroundColor: COLORS.alive + '22',
@@ -576,6 +517,19 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontSize: 14,
     fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  foundButton: {
+    backgroundColor: COLORS.alive,
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  foundText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
     letterSpacing: 1.5,
   },
 });

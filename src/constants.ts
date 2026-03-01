@@ -18,13 +18,10 @@ export {
   BOOST_MAX_USES,
   BOOST_TIME_BONUS,
   PRIZE_POOL,
-  PRIZE_DISTRIBUTION,
   STARTING_BALANCE,
   BET_AMOUNT,
   COUNTDOWN_SECONDS,
-  BOT_ACTION_COOLDOWN,
   TOTAL_PLAYERS,
-  BOT_CONFIGS,
 } from '../shared/constants';
 
 // Colors (client-only, not needed on server)

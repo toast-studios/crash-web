@@ -1,7 +1,5 @@
 // === HeatWave PvP — Shared Type Definitions ===
 
-export type BotPersonality = 'conservative' | 'aggressive' | 'strategic' | 'chaotic';
-
 export type PlayerStatus = 'alive' | 'exited' | 'bust';
 
 export type GamePhase = 'lobby' | 'countdown' | 'running' | 'roundOver';
@@ -11,7 +9,6 @@ export interface Player {
   name: string;
   isHuman: boolean;
   isBot: boolean;
-  personality?: BotPersonality;
   status: PlayerStatus;
   exitTime: number | null;
   boostCount: number;
@@ -32,10 +29,6 @@ export interface FeedMessage {
   playerName: string;
   action: 'cool' | 'boost' | 'exit' | 'bust';
   time: number;
-}
-
-export interface BotDecision {
-  action: 'none' | 'cool' | 'boost' | 'exit';
 }
 
 // === WebSocket Message Protocol ===

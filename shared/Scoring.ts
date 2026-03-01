@@ -1,7 +1,30 @@
 // === HeatWave PvP — Scoring & Ranking (Shared) ===
 
 import type { Player } from './types';
-import { BOOST_TIME_BONUS, PRIZE_DISTRIBUTION, PRIZE_POOL } from './constants';
+import { BOOST_TIME_BONUS, PRIZE_POOL } from './constants';
+
+/**
+ * Compute prize distribution based on player count.
+ * - 2 players: winner takes 100%
+ * - N players: top ceil(N/3) get prizes with decreasing shares
+ */
+export function getPrizeDistribution(playerCount: number): number[] {
+  if (playerCount <= 1) return [1.0];
+  if (playerCount === 2) return [1.0];
+
+  const prizeSlots = Math.ceil(playerCount / 3);
+
+  if (prizeSlots === 1) return [1.0];
+
+  // Generate decreasing weights: prizeSlots, prizeSlots-1, ..., 1
+  const weights: number[] = [];
+  for (let i = prizeSlots; i >= 1; i--) {
+    weights.push(i);
+  }
+  const total = weights.reduce((sum, w) => sum + w, 0);
+
+  return weights.map(w => w / total);
+}
 
 /**
  * Calculate a player's score.
@@ -21,9 +44,11 @@ export function calculateScore(player: Player, roundEndTime: number): number {
  *  - Exited players rank above bust players
  *  - Among exited: higher score = better rank
  *  - Among busted: more boosts = higher rank (courage bonus)
- *  - Top 3 get prize money from pool
+ *  - Top players get prize money from pool (dynamic based on player count)
  */
 export function rankPlayers(players: Player[], roundEndTime: number): Player[] {
+  const prizeDistribution = getPrizeDistribution(players.length);
+
   const scored = players.map(p => ({
     ...p,
     score: calculateScore(p, roundEndTime),
@@ -40,8 +65,8 @@ export function rankPlayers(players: Player[], roundEndTime: number): Player[] {
   return ranked.map((player, index) => ({
     ...player,
     rank: index + 1,
-    prize: index < PRIZE_DISTRIBUTION.length
-      ? Math.round(PRIZE_POOL * PRIZE_DISTRIBUTION[index])
+    prize: index < prizeDistribution.length
+      ? Math.round(PRIZE_POOL * prizeDistribution[index])
       : 0,
   }));
 }

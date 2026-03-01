@@ -25,7 +25,6 @@ export const BOOST_TIME_BONUS = 1.0; // +1.0s score bonus per boost
 
 // Scoring
 export const PRIZE_POOL = 100;
-export const PRIZE_DISTRIBUTION = [0.50, 0.30, 0.20]; // top 3 splits
 
 // Balance system
 export const STARTING_BALANCE = 1000;
@@ -34,28 +33,11 @@ export const BET_AMOUNT = 10;
 // Countdown
 export const COUNTDOWN_SECONDS = 3;
 
-// Bot cooldown (minimum time between actions in seconds)
-export const BOT_ACTION_COOLDOWN = 0.8;
-
 // Players
-export const TOTAL_PLAYERS = 10;
-
-// Bot definitions
-export const BOT_CONFIGS = [
-  { name: 'SteadyHand', personality: 'conservative' as const },
-  { name: 'SafePlay', personality: 'conservative' as const },
-  { name: 'CalmTrader', personality: 'conservative' as const },
-  { name: 'RiskTaker', personality: 'aggressive' as const },
-  { name: 'FOMO_King', personality: 'aggressive' as const },
-  { name: 'QuantBot', personality: 'strategic' as const },
-  { name: 'ChartWatcher', personality: 'strategic' as const },
-  { name: 'BearWhale', personality: 'chaotic' as const },
-  { name: 'MoonShot', personality: 'chaotic' as const },
-] as const;
+export const TOTAL_PLAYERS = 2;
 
 // Matchmaking constants
-export const MATCHMAKING_TIMEOUT_MS = 15000; // 15s before backfilling with bots
-export const MIN_REAL_PLAYERS = 1; // minimum real players to start a room
+export const MIN_REAL_PLAYERS = TOTAL_PLAYERS; // need full room of humans
 export const MATCHMAKING_POLL_INTERVAL_MS = 1000; // check queue every 1s
 
 // Server constants

@@ -23,7 +23,7 @@ import { ExplosionEffect } from '../animations/particles/ExplosionEffect';
 import { useScreenShake } from '../animations/hooks/useScreenShake';
 import { playSound } from '../sounds/SoundManager';
 import { StarField } from '../components/shared/StarField';
-import { COLORS, TICK_INTERVAL } from '../constants';
+import { COLORS } from '../constants';
 
 export function GameScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -37,15 +37,16 @@ export function GameScreen() {
   const boostUsesLeft = useGameStore(s => s.boostUsesLeft);
   const feedMessages = useGameStore(s => s.feedMessages);
 
-  const isOnline = useGameStore(s => s.isOnline);
-  const tick = useGameStore(s => s.tick);
   const useCool = useGameStore(s => s.useCool);
   const useBoost = useGameStore(s => s.useBoost);
   const exitRound = useGameStore(s => s.exitRound);
-  const startRound = useGameStore(s => s.startRound);
 
-  const human = players[0];
-  const tickRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const myPlayerId = useGameStore(s => s.myPlayerId);
+  const human = players.find(p => p.id === myPlayerId) ?? players[0] ?? {
+    id: '', name: '', isHuman: true, isBot: false,
+    status: 'alive' as const, exitTime: null, boostCount: 0,
+    coolCount: 0, score: 0, prize: 0, rank: null,
+  };
 
   // Particle effect triggers
   const [fireActive, setFireActive] = useState(false);
@@ -86,16 +87,7 @@ export function GameScreen() {
   }));
 
   // Countdown is now handled by CountdownOverlay component
-
-  // Game tick loop — only runs in offline mode
-  useEffect(() => {
-    if (phase === 'running' && !isOnline) {
-      tickRef.current = setInterval(tick, TICK_INTERVAL);
-    }
-    return () => {
-      if (tickRef.current) clearInterval(tickRef.current);
-    };
-  }, [phase, tick, isOnline]);
+  // Game state comes entirely from server via onGameState
 
   // Handle COOL — sound + haptic + flash + particles
   const handleCool = useCallback(async () => {
@@ -163,7 +155,7 @@ export function GameScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StarField starCount={40} intensity={0.1} />
-        <CountdownOverlay onComplete={startRound} />
+        <CountdownOverlay onComplete={() => {}} />
       </SafeAreaView>
     );
   }

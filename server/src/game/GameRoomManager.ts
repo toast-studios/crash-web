@@ -2,8 +2,8 @@
 // Creates/destroys rooms, routes actions to rooms, handles persistence.
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Player, BotPersonality } from '../../../shared/types';
-import { BOT_CONFIGS, BET_AMOUNT, ROOM_CLEANUP_DELAY_MS, TOTAL_PLAYERS } from '../../../shared/constants';
+import type { Player } from '../../../shared/types';
+import { BET_AMOUNT, ROOM_CLEANUP_DELAY_MS } from '../../../shared/constants';
 import type { ConnectionManager } from '../ws/ConnectionManager';
 import { GameRoom } from './GameRoom';
 import { recordMatchResult, creditBalance, getBalance } from '../db/queries';
@@ -24,33 +24,14 @@ export class GameRoomManager {
   }
 
   /**
-   * Create a new room with the given human players, backfilled with bots to reach TOTAL_PLAYERS.
+   * Create a new room with the given human players (no bots).
    */
   createRoom(humans: HumanEntry[]): string {
     const roomId = uuidv4();
-    const botCount = TOTAL_PLAYERS - humans.length;
-
-    // Shuffle bot configs and take what we need
-    const shuffled = [...BOT_CONFIGS].sort(() => Math.random() - 0.5);
-    const bots: Player[] = shuffled.slice(0, botCount).map((config, i) => ({
-      id: `bot-${i}`,
-      name: config.name,
-      isHuman: false,
-      isBot: true,
-      personality: config.personality as BotPersonality,
-      status: 'alive' as const,
-      exitTime: null,
-      boostCount: 0,
-      coolCount: 0,
-      score: 0,
-      prize: 0,
-      rank: null,
-    }));
 
     const room = new GameRoom(
       roomId,
       humans,
-      bots,
       this.connections,
       (id, players, elapsed) => this.handleRoomEnd(id, players, elapsed),
     );
@@ -65,7 +46,7 @@ export class GameRoomManager {
     // Start countdown
     room.startCountdown();
 
-    logger.info({ roomId, humans: humans.length, bots: botCount }, 'Room created');
+    logger.info({ roomId, humans: humans.length }, 'Room created');
     return roomId;
   }
 
