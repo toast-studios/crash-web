@@ -6,6 +6,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 
 let adminClient: SupabaseClient | null = null;
+let anonClient: SupabaseClient | null = null;
 let redisClient: Redis | null = null;
 let redisErrorLogged = false;
 
@@ -19,6 +20,18 @@ export function getSupabaseAdmin(): SupabaseClient {
     });
   }
   return adminClient;
+}
+
+/**
+ * Supabase anon client (for signInWithPassword on behalf of users).
+ */
+export function getSupabaseAnon(): SupabaseClient {
+  if (!anonClient) {
+    anonClient = createClient(config.supabase.url, config.supabase.anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return anonClient;
 }
 
 /**

@@ -20,24 +20,21 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Email and password required');
+    const trimmed = phone.trim();
+    if (!trimmed) {
+      setError('Enter your phone number');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const result = isSignUp
-      ? await AuthService.signUp(email.trim(), password)
-      : await AuthService.signIn(email.trim(), password);
+    const result = await AuthService.authenticate(trimmed);
 
     setLoading(false);
 
@@ -61,28 +58,16 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN'}
-          </Text>
+          <Text style={styles.cardTitle}>ENTER YOUR NUMBER</Text>
 
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder="Phone number"
             placeholderTextColor={COLORS.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
             autoCorrect={false}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={COLORS.textMuted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
           />
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -95,16 +80,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>
-                {isSignUp ? 'SIGN UP' : 'SIGN IN'}
-              </Text>
+              <Text style={styles.buttonText}>PLAY</Text>
             )}
-          </Pressable>
-
-          <Pressable onPress={() => { setIsSignUp(!isSignUp); setError(null); }}>
-            <Text style={styles.toggle}>
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -184,11 +161,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 1.5,
-  },
-  toggle: {
-    color: COLORS.textDim,
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 4,
   },
 });

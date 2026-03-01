@@ -10,7 +10,7 @@ import { ConnectionManager } from './ws/ConnectionManager';
 import { MessageHandler } from './ws/MessageHandler';
 import { GameRoomManager } from './game/GameRoomManager';
 import { MatchmakingService } from './matchmaking/MatchmakingService';
-import { initRedis, closeRedis, getSupabaseAdmin } from './db/supabaseClient';
+import { initRedis, closeRedis, getSupabaseAdmin, getSupabaseAnon } from './db/supabaseClient';
 
 async function main() {
   // Initialize Redis
@@ -32,7 +32,7 @@ async function main() {
     }
   };
 
-  // HTTP server with health check and signup endpoint
+  // HTTP server with health check and auth endpoint
   const server = http.createServer((req, res) => {
     // CORS headers for all responses
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -57,35 +57,52 @@ async function main() {
       return;
     }
 
-    // Signup endpoint — creates user with auto-confirmed email
-    if (req.url === '/api/signup' && req.method === 'POST') {
+    // Auth endpoint — create-or-login via phone number
+    if (req.url === '/api/auth' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', async () => {
         try {
-          const { email, password } = JSON.parse(body);
-          if (!email || !password) {
+          const { phone } = JSON.parse(body);
+          if (!phone) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Email and password required' }));
+            res.end(JSON.stringify({ error: 'Phone number required' }));
             return;
           }
 
-          const supabase = getSupabaseAdmin();
-          const { data, error } = await supabase.auth.admin.createUser({
+          const email = `${phone}@heatwave.local`;
+          const password = `heatwave_${phone}`;
+
+          // Create user if they don't exist (ignore "already exists" error)
+          const admin = getSupabaseAdmin();
+          const { error: createError } = await admin.auth.admin.createUser({
             email,
             password,
             email_confirm: true,
           });
 
-          if (error) {
+          if (createError && !createError.message.includes('already been registered')) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: error.message }));
+            res.end(JSON.stringify({ error: createError.message }));
             return;
           }
 
-          logger.info({ userId: data.user.id, email }, 'User signed up');
+          // Sign in to get tokens
+          const anon = getSupabaseAnon();
+          const { data, error: signInError } = await anon.auth.signInWithPassword({ email, password });
+
+          if (signInError || !data.session) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: signInError?.message ?? 'Sign-in failed' }));
+            return;
+          }
+
+          logger.info({ phone, userId: data.user.id }, 'User authenticated');
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ user_id: data.user.id }));
+          res.end(JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid request' }));

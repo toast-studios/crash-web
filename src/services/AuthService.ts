@@ -6,7 +6,7 @@ import { createClient, Session, SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = 'https://mrfkfreevypyfwczhzzd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZmtmcmVldnlweWZ3Y3poenpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNjAxMTksImV4cCI6MjA4NzkzNjExOX0.aEa0w_B_My26svmmOST1hQWcZpblUDQwthXtZFlCGBo';
 
-// Server URL for signup endpoint (uses admin API to auto-confirm email)
+// Server URL for auth endpoint
 const SERVER_URL = 'https://heatwave-pvp.onrender.com';
 
 let supabase: SupabaseClient;
@@ -28,28 +28,26 @@ function getClient(): SupabaseClient {
 export const AuthService = {
   getClient,
 
-  async signUp(email: string, password: string): Promise<{ error: string | null }> {
+  async authenticate(phone: string): Promise<{ error: string | null }> {
     try {
-      // Use server endpoint to create user with auto-confirmed email
-      const res = await fetch(`${SERVER_URL}/api/signup`, {
+      const res = await fetch(`${SERVER_URL}/api/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ phone }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        return { error: data.error ?? 'Signup failed' };
+        return { error: data.error ?? 'Authentication failed' };
       }
-      // Now sign in to get a session
-      return this.signIn(email, password);
+
+      const { error } = await getClient().auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+      return { error: error?.message ?? null };
     } catch (err) {
       return { error: 'Network error — is the server running?' };
     }
-  },
-
-  async signIn(email: string, password: string): Promise<{ error: string | null }> {
-    const { error } = await getClient().auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
   },
 
   async signOut(): Promise<void> {

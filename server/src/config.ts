@@ -17,6 +17,7 @@ export const config = {
   supabase: {
     url: requireEnv('SUPABASE_URL'),
     serviceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    anonKey: requireEnv('SUPABASE_ANON_KEY'),
     jwtSecret: requireEnv('SUPABASE_JWT_SECRET'),
   },
 
