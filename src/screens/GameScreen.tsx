@@ -1,0 +1,308 @@
+// === Main Game Screen (Orchestrator) ===
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { StyleSheet, Text, View, SafeAreaView, useWindowDimensions } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  interpolateColor,
+  useSharedValue,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { useGameStore } from '../store/useGameStore';
+import { HeatBar } from '../components/game/HeatBar';
+import { MultiplierDisplay } from '../components/game/MultiplierDisplay';
+import { RocketScene } from '../components/game/RocketScene';
+import { ActionButtons } from '../components/game/ActionButtons';
+import { LobbyFeed } from '../components/game/LobbyFeed';
+import { CountdownOverlay } from '../components/game/CountdownOverlay';
+import { FireParticles } from '../animations/particles/FireParticles';
+import { IceParticles } from '../animations/particles/IceParticles';
+import { ExplosionEffect } from '../animations/particles/ExplosionEffect';
+import { useScreenShake } from '../animations/hooks/useScreenShake';
+import { playSound } from '../sounds/SoundManager';
+import { StarField } from '../components/shared/StarField';
+import { COLORS, TICK_INTERVAL } from '../constants';
+
+export function GameScreen() {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
+  const phase = useGameStore(s => s.phase);
+  const elapsed = useGameStore(s => s.elapsed);
+  const heat = useGameStore(s => s.heat);
+  const pool = useGameStore(s => s.pool);
+  const players = useGameStore(s => s.players);
+  const coolUsesLeft = useGameStore(s => s.coolUsesLeft);
+  const boostUsesLeft = useGameStore(s => s.boostUsesLeft);
+  const feedMessages = useGameStore(s => s.feedMessages);
+
+  const isOnline = useGameStore(s => s.isOnline);
+  const tick = useGameStore(s => s.tick);
+  const useCool = useGameStore(s => s.useCool);
+  const useBoost = useGameStore(s => s.useBoost);
+  const exitRound = useGameStore(s => s.exitRound);
+  const startRound = useGameStore(s => s.startRound);
+
+  const human = players[0];
+  const tickRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  // Particle effect triggers
+  const [fireActive, setFireActive] = useState(false);
+  const [iceActive, setIceActive] = useState(false);
+
+  // Screen flash overlays
+  const coolFlash = useSharedValue(0);
+  const boostFlash = useSharedValue(0);
+  const bustFlash = useSharedValue(0);
+
+  const coolFlashStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(0, 212, 255, ${coolFlash.value * 0.25})`,
+  }));
+
+  const boostFlashStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(255, 68, 68, ${boostFlash.value * 0.25})`,
+  }));
+
+  const bustFlashStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(255, 0, 0, ${bustFlash.value * 0.5})`,
+  }));
+
+  // Screen shake
+  const shakeStyle = useScreenShake(heat, 80);
+
+  // Red overlay based on heat
+  const heatShared = useSharedValue(0);
+  useEffect(() => {
+    heatShared.value = withTiming(heat, { duration: 50 });
+  }, [heat]);
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      heatShared.value,
+      [0, 50, 80, 100],
+      ['transparent', 'transparent', '#ff000010', '#ff000030'],
+    ),
+  }));
+
+  // Countdown is now handled by CountdownOverlay component
+
+  // Game tick loop — only runs in offline mode
+  useEffect(() => {
+    if (phase === 'running' && !isOnline) {
+      tickRef.current = setInterval(tick, TICK_INTERVAL);
+    }
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [phase, tick, isOnline]);
+
+  // Handle COOL — sound + haptic + flash + particles
+  const handleCool = useCallback(async () => {
+    useCool();
+    setIceActive(true);
+    setTimeout(() => setIceActive(false), 100);
+    coolFlash.value = withSequence(
+      withTiming(1, { duration: 60, easing: Easing.out(Easing.quad) }),
+      withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }),
+    );
+    void playSound('cool');
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [useCool]);
+
+  // Handle BOOST — sound + haptic + flash + particles
+  const handleBoost = useCallback(async () => {
+    useBoost();
+    setFireActive(true);
+    setTimeout(() => setFireActive(false), 100);
+    boostFlash.value = withSequence(
+      withTiming(1, { duration: 60, easing: Easing.out(Easing.quad) }),
+      withTiming(0, { duration: 300, easing: Easing.out(Easing.quad) }),
+    );
+    void playSound('boost');
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  }, [useBoost]);
+
+  // Handle EXIT — sound + success haptic
+  const handleExit = useCallback(async () => {
+    exitRound();
+    void playSound('exit');
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [exitRound]);
+
+  // Bust detection — explosion sound + heavy haptic + red flash
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    if (prevPhaseRef.current === 'running' && phase === 'roundOver') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      void playSound('explosion');
+      bustFlash.value = withSequence(
+        withTiming(1, { duration: 80 }),
+        withTiming(0, { duration: 500, easing: Easing.out(Easing.quad) }),
+      );
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
+  // Warning beep when heat > 85% (plays every ~1.5s)
+  const lastWarningRef = useRef(0);
+  useEffect(() => {
+    if (phase === 'running' && heat > 85) {
+      const now = Date.now();
+      if (now - lastWarningRef.current > 1500) {
+        void playSound('warning', 0.4);
+        lastWarningRef.current = now;
+      }
+    }
+  }, [heat, phase]);
+
+  const barWidth = screenWidth - 32;
+
+  // Countdown overlay
+  if (phase === 'countdown') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StarField starCount={40} intensity={0.1} />
+        <CountdownOverlay onComplete={startRound} />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StarField starCount={40} intensity={heat / 200} />
+      <Animated.View style={[styles.container, shakeStyle]}>
+        {/* Red heat overlay */}
+        <Animated.View style={[StyleSheet.absoluteFill, overlayStyle]} pointerEvents="none" />
+        {/* COOL flash (blue) */}
+        <Animated.View style={[StyleSheet.absoluteFill, coolFlashStyle]} pointerEvents="none" />
+        {/* BOOST flash (red) */}
+        <Animated.View style={[StyleSheet.absoluteFill, boostFlashStyle]} pointerEvents="none" />
+        {/* Bust flash (deep red) */}
+        <Animated.View style={[StyleSheet.absoluteFill, bustFlashStyle]} pointerEvents="none" />
+
+        {/* Top section: Pool + Heat Bar */}
+        <View style={styles.topSection}>
+          <View style={styles.poolRow}>
+            <Text style={styles.poolLabel}>POOL</Text>
+            <Text style={styles.poolAmount}>${pool}</Text>
+          </View>
+          <View style={styles.heatBarContainer}>
+            <HeatBar heat={heat} width={barWidth} />
+          </View>
+        </View>
+
+        {/* Multiplier */}
+        <View style={styles.multiplierSection}>
+          <MultiplierDisplay
+            elapsed={elapsed}
+            heat={heat}
+            playerStatus={human.status}
+            exitTime={human.exitTime}
+          />
+        </View>
+
+        {/* Rocket Scene — centered, dedicated area */}
+        <View style={styles.rocketSection}>
+          <RocketScene
+            heat={heat}
+            elapsed={elapsed}
+            width={screenWidth * 0.5}
+            height={140}
+            isRunning={phase === 'running'}
+          />
+        </View>
+
+        {/* Player Feed */}
+        <View style={styles.feedSection}>
+          <LobbyFeed
+            players={players}
+            feedMessages={feedMessages}
+            showFeed
+          />
+        </View>
+
+        {/* Action Buttons */}
+        <ActionButtons
+          coolUsesLeft={coolUsesLeft}
+          boostUsesLeft={boostUsesLeft}
+          playerStatus={human.status}
+          onCool={handleCool}
+          onBoost={handleBoost}
+          onExit={handleExit}
+        />
+
+        {/* Particle Effects */}
+        <FireParticles
+          x={screenWidth / 2}
+          y={screenHeight * 0.6}
+          active={fireActive}
+          width={screenWidth}
+          height={screenHeight}
+        />
+        <IceParticles
+          x={screenWidth / 2}
+          y={screenHeight * 0.4}
+          active={iceActive}
+          width={screenWidth}
+          height={screenHeight}
+        />
+
+        {/* Explosion on round end */}
+        <ExplosionEffect
+          active={phase === 'roundOver'}
+          width={screenWidth}
+          height={screenHeight}
+        />
+      </Animated.View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  container: {
+    flex: 1,
+  },
+  topSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 8,
+  },
+  poolRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  poolLabel: {
+    color: COLORS.textDim,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  poolAmount: {
+    color: COLORS.gold,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  heatBarContainer: {
+    alignItems: 'center',
+  },
+  multiplierSection: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  rocketSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 140,
+  },
+  feedSection: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+});
