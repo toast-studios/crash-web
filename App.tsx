@@ -14,8 +14,6 @@ import type { ServerMessage } from './shared/types';
 export default function App() {
   const phase = useGameStore(s => s.phase);
   const loadBalance = useGameStore(s => s.loadBalance);
-  const isOnline = useGameStore(s => s.isOnline);
-  const setOnline = useGameStore(s => s.setOnline);
   const setConnectionStatus = useGameStore(s => s.setConnectionStatus);
   const onGameState = useGameStore(s => s.onGameState);
   const onMatchFound = useGameStore(s => s.onMatchFound);
@@ -56,7 +54,6 @@ export default function App() {
         wsConnected = false;
         setIsAuthenticated(false);
         WebSocketService.disconnect();
-        setOnline(false);
       }
     });
 
@@ -65,16 +62,10 @@ export default function App() {
 
   const connectWebSocket = useCallback((token: string) => {
     WebSocketService.connect(token);
-    setOnline(true);
 
     // Connection status listener
     WebSocketService.onStatusChange((status) => {
       setConnectionStatus(status);
-      if (status === 'disconnected') {
-        setOnline(false);
-      } else if (status === 'connected') {
-        setOnline(true);
-      }
     });
 
     // Server message listener
@@ -103,7 +94,7 @@ export default function App() {
           break;
       }
     });
-  }, [onGameState, onMatchFound, onCountdown, onRoundOver, onQueueStatus, setConnectionStatus, setOnline]);
+  }, [onGameState, onMatchFound, onCountdown, onRoundOver, onQueueStatus, setConnectionStatus]);
 
   const handleAuth = useCallback(() => {
     setIsAuthenticated(true);
