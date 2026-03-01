@@ -7,7 +7,7 @@ const SUPABASE_URL = 'https://mrfkfreevypyfwczhzzd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZmtmcmVldnlweWZ3Y3poenpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzNjAxMTksImV4cCI6MjA4NzkzNjExOX0.aEa0w_B_My26svmmOST1hQWcZpblUDQwthXtZFlCGBo';
 
 // Server URL for signup endpoint (uses admin API to auto-confirm email)
-const SERVER_URL = 'http://localhost:3000';
+const SERVER_URL = 'https://heatwave-pvp.onrender.com';
 
 let supabase: SupabaseClient;
 

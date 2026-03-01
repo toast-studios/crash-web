@@ -4,7 +4,7 @@
 import type { ClientMessage, ServerMessage } from '../../shared/types';
 
 // For local development, use ws:// (no TLS). For production, use wss://your-server.fly.dev/ws
-const WS_SERVER_URL = 'ws://localhost:3000/ws';
+const WS_SERVER_URL = 'wss://heatwave-pvp.onrender.com/ws';
 
 type MessageListener = (message: ServerMessage) => void;
 type StatusListener = (status: ConnectionStatus) => void;
