@@ -231,14 +231,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   onMatchFound: (payload: MatchFoundPayload) => {
-    // Find our player in the match (first non-bot, or use WS auth id)
-    const myPlayer = payload.players.find((p: MatchFoundPayload['players'][number]) => !p.isBot);
-
     set({
       matchmakingStatus: 'found',
       phase: 'countdown',
       countdown: payload.countdown_seconds,
-      myPlayerId: myPlayer?.id ?? null,
+      myPlayerId: payload.yourPlayerId,
       players: payload.players.map((p: MatchFoundPayload['players'][number]) => ({
         id: p.id,
         name: p.name,

@@ -72,6 +72,7 @@ export interface MatchFoundPayload {
   room_id: string;
   players: Array<{ id: string; name: string; isBot: boolean }>;
   countdown_seconds: number;
+  yourPlayerId: string;
 }
 
 export interface CountdownPayload {

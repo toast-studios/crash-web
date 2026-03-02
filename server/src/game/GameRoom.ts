@@ -104,15 +104,19 @@ export class GameRoom {
   startCountdown(): void {
     this.countdownRemaining = COUNTDOWN_SECONDS;
 
-    // Send initial match_found with player list
-    this.connections.broadcast(this.roomId, {
-      type: 'match_found',
-      payload: {
-        room_id: this.roomId,
-        players: this.players.map(p => ({ id: p.id, name: p.name, isBot: p.isBot })),
-        countdown_seconds: COUNTDOWN_SECONDS,
-      },
-    });
+    // Send personalized match_found to each human with their player ID
+    const playerList = this.players.map(p => ({ id: p.id, name: p.name, isBot: p.isBot }));
+    for (const [userId, playerId] of this.userToPlayerId) {
+      this.connections.send(userId, {
+        type: 'match_found',
+        payload: {
+          room_id: this.roomId,
+          players: playerList,
+          countdown_seconds: COUNTDOWN_SECONDS,
+          yourPlayerId: playerId,
+        },
+      });
+    }
 
     this.countdownTimer = setInterval(() => {
       if (this.countdownRemaining <= 0) {
