@@ -26,7 +26,8 @@ const FLAME_COLORS_INNER = ['#ffffff', '#ffffaa', '#ffee66', '#ffdd33'];
 const FLAME_COLORS_OUTER = ['#ff6600', '#ff4400', '#ff8800', '#ffaa00', '#ff2200'];
 const SMOKE_COLORS = ['#666666', '#555555', '#444444', '#333333'];
 
-export function RocketScene({ heat, elapsed, width, height, isRunning }: RocketSceneProps) {
+export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning }: RocketSceneProps) {
+  const width = Math.floor(rawWidth);
   const [particles, setParticles] = useState<Particle[]>([]);
   const frameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
   const lastTimeRef = useRef(Date.now());
@@ -363,5 +364,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible' as const,
   },
 });

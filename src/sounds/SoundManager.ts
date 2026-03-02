@@ -1,10 +1,10 @@
 // === HeatWave PvP — Sound Manager ===
-import { Audio } from 'expo-av';
-import type { AVPlaybackSource } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer, AudioSource } from 'expo-audio';
 
 type SoundName = 'cool' | 'boost' | 'exit' | 'explosion' | 'tick' | 'go' | 'warning';
 
-const soundFiles: Record<SoundName, AVPlaybackSource> = {
+const soundFiles: Record<SoundName, AudioSource> = {
   cool: require('../../assets/sounds/cool.mp3'),
   boost: require('../../assets/sounds/boost.mp3'),
   exit: require('../../assets/sounds/exit.mp3'),
@@ -15,7 +15,7 @@ const soundFiles: Record<SoundName, AVPlaybackSource> = {
 };
 
 // Pre-loaded sound instances for instant playback
-const loadedSounds: Partial<Record<SoundName, Audio.Sound>> = {};
+const loadedSounds: Partial<Record<SoundName, AudioPlayer>> = {};
 let initialized = false;
 
 /**
@@ -25,26 +25,20 @@ let initialized = false;
 export async function initSounds(): Promise<void> {
   if (initialized) return;
 
-  await Audio.setAudioModeAsync({
-    playsInSilentModeIOS: true,
-    staysActiveInBackground: false,
-    shouldDuckAndroid: true,
+  await setAudioModeAsync({
+    playsInSilentMode: true,
+    shouldPlayInBackground: false,
+    interruptionMode: 'duckOthers',
   });
 
   const names = Object.keys(soundFiles) as SoundName[];
-  await Promise.all(
-    names.map(async (name) => {
-      try {
-        const { sound } = await Audio.Sound.createAsync(soundFiles[name], {
-          shouldPlay: false,
-          volume: 1.0,
-        });
-        loadedSounds[name] = sound;
-      } catch (e) {
-        console.warn(`Failed to load sound: ${name}`, e);
-      }
-    }),
-  );
+  for (const name of names) {
+    try {
+      loadedSounds[name] = createAudioPlayer(soundFiles[name]);
+    } catch (e) {
+      console.warn(`Failed to load sound: ${name}`, e);
+    }
+  }
 
   initialized = true;
 }
@@ -54,15 +48,15 @@ export async function initSounds(): Promise<void> {
  * Rewinds to start if already played, so it can fire rapidly.
  */
 export async function playSound(name: SoundName, volume?: number): Promise<void> {
-  const sound = loadedSounds[name];
-  if (!sound) return;
+  const player = loadedSounds[name];
+  if (!player) return;
 
   try {
-    await sound.setPositionAsync(0);
+    await player.seekTo(0);
     if (volume !== undefined) {
-      await sound.setVolumeAsync(volume);
+      player.volume = volume;
     }
-    await sound.playAsync();
+    player.play();
   } catch (e) {
     // Silently fail — don't crash the game over a sound
   }
@@ -73,14 +67,12 @@ export async function playSound(name: SoundName, volume?: number): Promise<void>
  */
 export async function unloadSounds(): Promise<void> {
   const names = Object.keys(loadedSounds) as SoundName[];
-  await Promise.all(
-    names.map(async (name) => {
-      try {
-        await loadedSounds[name]?.unloadAsync();
-      } catch (e) {
-        // ignore
-      }
-    }),
-  );
+  for (const name of names) {
+    try {
+      loadedSounds[name]?.remove();
+    } catch (e) {
+      // ignore
+    }
+  }
   initialized = false;
 }
