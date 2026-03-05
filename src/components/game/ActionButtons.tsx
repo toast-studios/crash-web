@@ -27,12 +27,13 @@ interface ActionButtonProps {
   disabled: boolean;
   onPress: () => void;
   flex?: number;
+  fireOnPressIn?: boolean;
 }
 
-function ActionButton({ label, sublabel, color, disabled, onPress, flex = 1 }: ActionButtonProps) {
+function ActionButton({ label, sublabel, color, disabled, onPress, flex = 1, fireOnPressIn = false }: ActionButtonProps) {
   const scale = useSharedValue(1);
 
-  const handlePress = useCallback(() => {
+  const triggerAction = useCallback(() => {
     if (disabled) return;
     scale.value = withSequence(
       withSpring(0.9, { damping: 15, stiffness: 400 }),
@@ -48,7 +49,8 @@ function ActionButton({ label, sublabel, color, disabled, onPress, flex = 1 }: A
 
   return (
     <AnimatedPressable
-      onPress={handlePress}
+      onPressIn={fireOnPressIn ? triggerAction : undefined}
+      onPress={fireOnPressIn ? undefined : triggerAction}
       style={[
         styles.button,
         {
@@ -102,6 +104,7 @@ export function ActionButtons({
         disabled={!isAlive}
         onPress={onExit}
         flex={1.2}
+        fireOnPressIn={true}
       />
     </View>
   );

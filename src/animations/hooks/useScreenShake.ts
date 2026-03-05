@@ -14,12 +14,12 @@ import {
  * Camera shake effect when heat > threshold.
  * Returns an animated style to apply to the root game container.
  */
-export function useScreenShake(heat: number, threshold: number = 80) {
+export function useScreenShake(heat: number, threshold: number = 80, disabled: boolean = false) {
   const shakeX = useSharedValue(0);
   const shakeY = useSharedValue(0);
 
   useEffect(() => {
-    if (heat > threshold) {
+    if (!disabled && heat > threshold) {
       const intensity = ((heat - threshold) / (100 - threshold)) * 4;
       shakeX.value = withRepeat(
         withSequence(
@@ -45,7 +45,7 @@ export function useScreenShake(heat: number, threshold: number = 80) {
       shakeX.value = withTiming(0, { duration: 100 });
       shakeY.value = withTiming(0, { duration: 100 });
     }
-  }, [heat > threshold]);
+  }, [heat > threshold, disabled]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [

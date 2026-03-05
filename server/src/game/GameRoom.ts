@@ -27,6 +27,8 @@ import type { ConnectionManager } from '../ws/ConnectionManager';
 import { ErrorCode } from '../utils/errors';
 import { logger } from '../utils/logger';
 
+const EXIT_GRACE_PERIOD_MS = 300;
+
 interface HumanPlayerEntry {
   userId: string;
   displayName: string;
@@ -46,6 +48,8 @@ export class GameRoom {
   private rng: () => number;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private finalizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private roundEndedAt: number | null = null;
   private tickCount = 0;
   private countdownRemaining = COUNTDOWN_SECONDS;
 
@@ -182,7 +186,13 @@ export class GameRoom {
    * Handle a human player's action.
    */
   handleAction(userId: string, action: 'cool' | 'boost' | 'exit'): void {
-    if (this.phase !== 'running') {
+    const inGrace =
+      action === 'exit' &&
+      this.phase === 'roundOver' &&
+      this.roundEndedAt !== null &&
+      Date.now() - this.roundEndedAt < EXIT_GRACE_PERIOD_MS;
+
+    if (this.phase !== 'running' && !inGrace) {
       this.connections.send(userId, {
         type: 'error',
         payload: { code: ErrorCode.GAME_NOT_RUNNING, message: 'Game is not running' },
@@ -198,10 +208,12 @@ export class GameRoom {
 
     const player = this.players[playerIdx];
     if (player.status !== 'alive') {
-      this.connections.send(userId, {
-        type: 'error',
-        payload: { code: ErrorCode.PLAYER_NOT_ALIVE, message: 'Player is not alive' },
-      });
+      if (!inGrace) {
+        this.connections.send(userId, {
+          type: 'error',
+          payload: { code: ErrorCode.PLAYER_NOT_ALIVE, message: 'Player is not alive' },
+        });
+      }
       return;
     }
 
@@ -291,9 +303,17 @@ export class GameRoom {
     }
 
     this.phase = 'roundOver';
+    this.roundEndedAt = Date.now();
     this.heat = 100;
 
-    // Mark alive players as bust
+    // Delay finalization to allow in-flight exit actions to be processed
+    this.finalizeTimer = setTimeout(() => this.finalizeRound(), EXIT_GRACE_PERIOD_MS);
+  }
+
+  private finalizeRound(): void {
+    this.finalizeTimer = null;
+
+    // Mark any players still alive as bust
     this.players = this.players.map(p =>
       p.status === 'alive' ? { ...p, status: 'bust' as const } : p,
     );
@@ -308,7 +328,7 @@ export class GameRoom {
     // Rank and assign prizes
     this.players = rankPlayers(this.players, this.elapsed);
 
-    logger.info({ roomId: this.roomId, elapsed: this.elapsed }, 'Round ended');
+    logger.info({ roomId: this.roomId, elapsed: this.elapsed }, 'Round finalized');
 
     // round_over is sent by GameRoomManager after DB updates (with real balance)
 
@@ -403,6 +423,10 @@ export class GameRoom {
     if (this.countdownTimer) {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
+    }
+    if (this.finalizeTimer) {
+      clearTimeout(this.finalizeTimer);
+      this.finalizeTimer = null;
     }
     logger.info({ roomId: this.roomId }, 'GameRoom destroyed');
   }

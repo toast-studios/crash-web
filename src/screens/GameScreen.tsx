@@ -48,6 +48,15 @@ export function GameScreen() {
     coolCount: 0, score: 0, prize: 0, rank: null,
   };
 
+  const [optimisticExited, setOptimisticExited] = useState(false);
+
+  // Reset optimistic state on new round
+  useEffect(() => {
+    if (phase === 'countdown') setOptimisticExited(false);
+  }, [phase]);
+
+  const effectiveStatus = optimisticExited ? 'exited' as const : human.status;
+
   // Particle effect triggers
   const [fireActive, setFireActive] = useState(false);
   const [iceActive, setIceActive] = useState(false);
@@ -70,7 +79,7 @@ export function GameScreen() {
   }));
 
   // Screen shake
-  const shakeStyle = useScreenShake(heat, 80);
+  const shakeStyle = useScreenShake(heat, 80, effectiveStatus === 'exited');
 
   // Red overlay based on heat
   const heatShared = useSharedValue(0);
@@ -115,8 +124,9 @@ export function GameScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   }, [useBoost]);
 
-  // Handle EXIT — sound + success haptic
+  // Handle EXIT — optimistic exit + sound + success haptic
   const handleExit = useCallback(async () => {
+    setOptimisticExited(true);
     exitRound();
     void playSound('exit');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -189,7 +199,7 @@ export function GameScreen() {
           <MultiplierDisplay
             elapsed={elapsed}
             heat={heat}
-            playerStatus={human.status}
+            playerStatus={effectiveStatus}
             exitTime={human.exitTime}
           />
         </View>
@@ -218,7 +228,7 @@ export function GameScreen() {
         <ActionButtons
           coolUsesLeft={coolUsesLeft}
           boostUsesLeft={boostUsesLeft}
-          playerStatus={human.status}
+          playerStatus={effectiveStatus}
           onCool={handleCool}
           onBoost={handleBoost}
           onExit={handleExit}
