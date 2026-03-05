@@ -1,10 +1,13 @@
 // === Core Skia Particle Engine ===
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import {
   Canvas,
   Circle,
   BlurMask,
 } from '@shopify/react-native-skia';
+
+const isWeb = Platform.OS === 'web';
 import type { Particle } from '../../types';
 
 interface ParticleSystemProps {
@@ -38,7 +41,7 @@ export function ParticleSystem({
             color={p.color}
             opacity={alpha}
           >
-            <BlurMask blur={3} style="normal" />
+            {!isWeb && <BlurMask blur={3} style="normal" />}
           </Circle>
         );
       })}

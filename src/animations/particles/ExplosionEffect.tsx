@@ -1,11 +1,14 @@
 // === Round-End Explosion Effect ===
 import React, { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import {
   Canvas,
   Circle,
   BlurMask,
   Rect,
 } from '@shopify/react-native-skia';
+
+const isWeb = Platform.OS === 'web';
 import type { Particle } from '../../types';
 import { createParticle, updateParticles } from './ParticleSystem';
 
@@ -109,7 +112,7 @@ export function ExplosionEffect({ active, width, height }: ExplosionEffectProps)
             color={p.color}
             opacity={alpha}
           >
-            <BlurMask blur={4} style="normal" />
+            {!isWeb && <BlurMask blur={4} style="normal" />}
           </Circle>
         );
       })}

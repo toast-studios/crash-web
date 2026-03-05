@@ -1,11 +1,13 @@
 // === Animated Star Field Background ===
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import {
   Canvas,
   Circle,
   BlurMask,
 } from '@shopify/react-native-skia';
+
+const isWeb = Platform.OS === 'web';
 
 interface Star {
   x: number;
@@ -45,9 +47,17 @@ export function StarField({ starCount = 60, intensity = 0 }: StarFieldProps) {
   const [frame, setFrame] = useState(0);
   const frameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
   const timeRef = useRef(0);
+  const lastFrameTimeRef = useRef(0);
 
   useEffect(() => {
-    const animate = () => {
+    const TARGET_INTERVAL_MS = isWeb ? 1000 / 15 : 0; // 15fps on web, uncapped on native
+
+    const animate = (timestamp: number) => {
+      if (isWeb && timestamp - lastFrameTimeRef.current < TARGET_INTERVAL_MS) {
+        frameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastFrameTimeRef.current = timestamp;
       timeRef.current += 1 / 60;
       setFrame(f => f + 1);
       frameRef.current = requestAnimationFrame(animate);
@@ -83,7 +93,7 @@ export function StarField({ starCount = 60, intensity = 0 }: StarFieldProps) {
         />
       ))}
       {/* A few bigger "bright" stars with glow */}
-      {renderedStars.filter((_, i) => i < 8).map((star) => (
+      {!isWeb && renderedStars.filter((_, i) => i < 8).map((star) => (
         <Circle
           key={`glow-${star.key}`}
           cx={star.x}

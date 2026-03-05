@@ -1,6 +1,6 @@
 // === Skia Rocket + Flame Particle Trail ===
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import {
   Canvas,
   Path,
@@ -13,6 +13,8 @@ import {
   Oval,
 } from '@shopify/react-native-skia';
 import type { Particle } from '../../types';
+
+const isWeb = Platform.OS === 'web';
 
 interface RocketSceneProps {
   heat: number;
@@ -36,6 +38,15 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
   const rocketX = width / 2;
   const cy = Math.min(height - 30, Math.max(30, rocketY));
 
+  // Keep latest values in refs so the rAF callback always reads fresh values
+  // without being in the useEffect dependency array (avoids loop restarts at 10Hz).
+  const rocketXRef = useRef(rocketX);
+  const cyRef = useRef(cy);
+  const heatRef = useRef(heat);
+  rocketXRef.current = rocketX;
+  cyRef.current = cy;
+  heatRef.current = heat;
+
   useEffect(() => {
     if (!isRunning) {
       setParticles([]);
@@ -48,15 +59,18 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
       lastTimeRef.current = now;
 
       setParticles(prev => {
+        const currentRocketX = rocketXRef.current;
+        const currentCy = cyRef.current;
+        const currentHeat = heatRef.current;
         const newParticles: Particle[] = [];
-        const intensity = heat > 70 ? 6 : heat > 40 ? 4 : 3;
+        const intensity = currentHeat > 70 ? 6 : currentHeat > 40 ? 4 : 3;
 
         // Inner bright flame (white/yellow core)
         for (let i = 0; i < Math.ceil(intensity * 0.4); i++) {
           const color = FLAME_COLORS_INNER[Math.floor(Math.random() * FLAME_COLORS_INNER.length)];
           newParticles.push({
-            x: rocketX + (Math.random() - 0.5) * 10,
-            y: cy + 34,
+            x: currentRocketX + (Math.random() - 0.5) * 10,
+            y: currentCy + 34,
             vx: (Math.random() - 0.5) * 1,
             vy: 2.5 + Math.random() * 2,
             life: 0.15 + Math.random() * 0.2,
@@ -71,8 +85,8 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
         for (let i = 0; i < intensity; i++) {
           const color = FLAME_COLORS_OUTER[Math.floor(Math.random() * FLAME_COLORS_OUTER.length)];
           newParticles.push({
-            x: rocketX + (Math.random() - 0.5) * 16,
-            y: cy + 36,
+            x: currentRocketX + (Math.random() - 0.5) * 16,
+            y: currentCy + 36,
             vx: (Math.random() - 0.5) * 2.5,
             vy: 2 + Math.random() * 4,
             life: 0.25 + Math.random() * 0.45,
@@ -87,8 +101,8 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
         if (Math.random() < 0.4) {
           const color = SMOKE_COLORS[Math.floor(Math.random() * SMOKE_COLORS.length)];
           newParticles.push({
-            x: rocketX + (Math.random() - 0.5) * 12,
-            y: cy + 42,
+            x: currentRocketX + (Math.random() - 0.5) * 12,
+            y: currentCy + 42,
             vx: (Math.random() - 0.5) * 1.5,
             vy: 1.5 + Math.random() * 2,
             life: 0.5 + Math.random() * 0.6,
@@ -100,10 +114,10 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
         }
 
         // Spark particles (small bright dots flying out)
-        if (heat > 50 && Math.random() < 0.3) {
+        if (currentHeat > 50 && Math.random() < 0.3) {
           newParticles.push({
-            x: rocketX + (Math.random() - 0.5) * 8,
-            y: cy + 35,
+            x: currentRocketX + (Math.random() - 0.5) * 8,
+            y: currentCy + 35,
             vx: (Math.random() - 0.5) * 5,
             vy: 1 + Math.random() * 5,
             life: 0.2 + Math.random() * 0.3,
@@ -136,7 +150,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [isRunning, rocketX, cy, heat]);
+  }, [isRunning]);
 
   // --- Rocket geometry ---
   const bodyW = 22;
@@ -196,7 +210,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
               color={p.color}
               opacity={alpha}
             >
-              <BlurMask blur={p.size > 5 ? 5 : 3} style="normal" />
+              {!isWeb && <BlurMask blur={p.size > 5 ? 5 : 3} style="normal" />}
             </Circle>
           );
         })}
@@ -215,7 +229,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
                 end={vec(rocketX, cy + 50)}
                 colors={['#ff880088', '#ff440000']}
               />
-              <BlurMask blur={14} style="normal" />
+              {!isWeb && <BlurMask blur={14} style="normal" />}
             </Circle>
 
             {/* === Fins (behind body) === */}
@@ -350,7 +364,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
                   end={vec(rocketX, cy + 40)}
                   colors={['#ff440033', '#ff000000']}
                 />
-                <BlurMask blur={20} style="normal" />
+                {!isWeb && <BlurMask blur={20} style="normal" />}
               </Circle>
             )}
           </Group>

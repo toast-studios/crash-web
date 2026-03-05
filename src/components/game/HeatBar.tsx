@@ -1,6 +1,6 @@
 // === Skia Heat Bar with Glow + Shimmer ===
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Platform } from 'react-native';
 import {
   Canvas,
   RoundedRect,
@@ -12,6 +12,8 @@ import {
 import { useNumberRoll } from '../../animations/hooks/useNumberRoll';
 import { COLORS } from '../../constants';
 import { getHeatColor } from '../../engine/HeatEngine';
+
+const isWeb = Platform.OS === 'web';
 
 interface HeatBarProps {
   heat: number;
@@ -77,7 +79,7 @@ export function HeatBar({ heat, width }: HeatBarProps) {
               color={color}
               opacity={0.3}
             >
-              <BlurMask blur={8} style="normal" />
+              {!isWeb && <BlurMask blur={8} style="normal" />}
             </RoundedRect>
           )}
           {/* Shimmer overlay */}
