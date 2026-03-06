@@ -27,7 +27,7 @@ import type { ConnectionManager } from '../ws/ConnectionManager';
 import { ErrorCode } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-const EXIT_GRACE_PERIOD_MS = 300;
+const EXIT_GRACE_PERIOD_MS = 1000;
 
 interface HumanPlayerEntry {
   userId: string;
