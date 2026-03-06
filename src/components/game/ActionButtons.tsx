@@ -89,6 +89,7 @@ export function ActionButtons({
         color={COLORS.cool}
         disabled={!isAlive || coolUsesLeft <= 0}
         onPress={onCool}
+        fireOnPressIn={true}
       />
       <ActionButton
         label="🔥 BOOST"
@@ -96,6 +97,7 @@ export function ActionButtons({
         color={COLORS.boost}
         disabled={!isAlive || boostUsesLeft <= 0}
         onPress={onBoost}
+        fireOnPressIn={true}
       />
       <ActionButton
         label="💰 EXIT"
