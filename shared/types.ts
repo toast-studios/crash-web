@@ -47,7 +47,7 @@ export interface LeaveQueueMessage {
 
 export interface ActionMessage {
   type: 'action';
-  payload: { action: 'cool' | 'boost' | 'exit' };
+  payload: { action: 'cool' | 'boost' | 'exit'; elapsed?: number };
 }
 
 export interface PingMessage {

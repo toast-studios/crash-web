@@ -46,7 +46,7 @@ export class MessageHandler {
           break;
 
         case 'action': {
-          const { action } = message.payload;
+          const { action, elapsed } = message.payload;
           if (!['cool', 'boost', 'exit'].includes(action)) {
             this.connections.send(userId, {
               type: 'error',
@@ -54,7 +54,7 @@ export class MessageHandler {
             });
             return;
           }
-          this.roomManager.handlePlayerAction(userId, action);
+          this.roomManager.handlePlayerAction(userId, action, elapsed);
           break;
         }
 

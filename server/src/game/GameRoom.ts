@@ -27,7 +27,8 @@ import type { ConnectionManager } from '../ws/ConnectionManager';
 import { ErrorCode } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-const EXIT_GRACE_PERIOD_MS = 1000;
+// Max wall-clock time after round end to still accept an in-flight exit message
+const EXIT_GRACE_LAG_MS = 2000;
 
 interface HumanPlayerEntry {
   userId: string;
@@ -50,6 +51,7 @@ export class GameRoom {
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private finalizeTimer: ReturnType<typeof setTimeout> | null = null;
   private roundEndedAt: number | null = null;
+  private roundEndElapsed: number | null = null;
   private tickCount = 0;
   private countdownRemaining = COUNTDOWN_SECONDS;
 
@@ -185,14 +187,20 @@ export class GameRoom {
   /**
    * Handle a human player's action.
    */
-  handleAction(userId: string, action: 'cool' | 'boost' | 'exit'): void {
-    const inGrace =
+  handleAction(userId: string, action: 'cool' | 'boost' | 'exit', clientElapsed?: number): void {
+    // Accept a late exit if:
+    // 1. Client's elapsed at tap time was before the round ended (genuine near-miss)
+    // 2. The message arrived within EXIT_GRACE_LAG_MS (anti-abuse, handles network lag)
+    const isLateExit =
       action === 'exit' &&
       this.phase === 'roundOver' &&
       this.roundEndedAt !== null &&
-      Date.now() - this.roundEndedAt < EXIT_GRACE_PERIOD_MS;
+      this.roundEndElapsed !== null &&
+      Date.now() - this.roundEndedAt < EXIT_GRACE_LAG_MS &&
+      clientElapsed !== undefined &&
+      clientElapsed < this.roundEndElapsed;
 
-    if (this.phase !== 'running' && !inGrace) {
+    if (this.phase !== 'running' && !isLateExit) {
       this.connections.send(userId, {
         type: 'error',
         payload: { code: ErrorCode.GAME_NOT_RUNNING, message: 'Game is not running' },
@@ -242,7 +250,7 @@ export class GameRoom {
       return;
     }
 
-    this.executeAction(playerIdx, action);
+    this.executeAction(playerIdx, action, isLateExit ? clientElapsed : undefined);
 
     // Broadcast the action immediately to all players
     this.connections.broadcast(this.roomId, {
@@ -261,7 +269,7 @@ export class GameRoom {
     }
   }
 
-  private executeAction(playerIdx: number, action: string): void {
+  private executeAction(playerIdx: number, action: string, clientElapsed?: number): void {
     if (action === 'none') return;
 
     const player = this.players[playerIdx];
@@ -289,7 +297,8 @@ export class GameRoom {
         this.players[playerIdx] = {
           ...player,
           status: 'exited',
-          exitTime: this.elapsed,
+          // Use client's tap time if it's a validated late exit, otherwise server elapsed
+          exitTime: clientElapsed !== undefined ? clientElapsed : this.elapsed,
         };
         this.addFeedMessage(player.name, 'exit');
         break;
@@ -304,10 +313,14 @@ export class GameRoom {
 
     this.phase = 'roundOver';
     this.roundEndedAt = Date.now();
+    this.roundEndElapsed = this.elapsed;
     this.heat = 100;
 
-    // Delay finalization to allow in-flight exit actions to be processed
-    this.finalizeTimer = setTimeout(() => this.finalizeRound(), EXIT_GRACE_PERIOD_MS);
+    // Broadcast immediately so clients see heat=100 and disable EXIT button
+    this.broadcastGameState();
+
+    // Short window (500ms) to receive in-flight exit messages already sent by clients
+    this.finalizeTimer = setTimeout(() => this.finalizeRound(), 500);
   }
 
   private finalizeRound(): void {

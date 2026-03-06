@@ -167,7 +167,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   exitRound: () => {
-    get().sendAction('exit');
+    const { elapsed } = get();
+    WebSocketService.send({ type: 'action', payload: { action: 'exit', elapsed } });
   },
 
   resetLobby: () => {

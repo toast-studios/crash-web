@@ -53,7 +53,7 @@ export class GameRoomManager {
   /**
    * Route a player's action to their room.
    */
-  handlePlayerAction(userId: string, action: 'cool' | 'boost' | 'exit'): void {
+  handlePlayerAction(userId: string, action: 'cool' | 'boost' | 'exit', clientElapsed?: number): void {
     const roomId = this.connections.getRoom(userId);
     if (!roomId) {
       this.connections.send(userId, {
@@ -72,7 +72,7 @@ export class GameRoomManager {
       return;
     }
 
-    room.handleAction(userId, action);
+    room.handleAction(userId, action, clientElapsed);
   }
 
   /**
