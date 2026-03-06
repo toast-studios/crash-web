@@ -49,10 +49,14 @@ export function GameScreen() {
   };
 
   const [optimisticExited, setOptimisticExited] = useState(false);
+  const [optimisticExitTime, setOptimisticExitTime] = useState<number | null>(null);
 
   // Reset optimistic state on new round
   useEffect(() => {
-    if (phase === 'countdown') setOptimisticExited(false);
+    if (phase === 'countdown') {
+      setOptimisticExited(false);
+      setOptimisticExitTime(null);
+    }
   }, [phase]);
 
   const effectiveStatus = optimisticExited ? 'exited' as const : human.status;
@@ -127,10 +131,11 @@ export function GameScreen() {
   // Handle EXIT — optimistic exit + sound + success haptic
   const handleExit = useCallback(async () => {
     setOptimisticExited(true);
+    setOptimisticExitTime(elapsed);
     exitRound();
     void playSound('exit');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [exitRound]);
+  }, [exitRound, elapsed]);
 
   // Bust detection — explosion sound + heavy haptic + red flash
   const prevPhaseRef = useRef(phase);
@@ -200,7 +205,7 @@ export function GameScreen() {
             elapsed={elapsed}
             heat={heat}
             playerStatus={effectiveStatus}
-            exitTime={human.exitTime}
+            exitTime={optimisticExited ? optimisticExitTime : human.exitTime}
           />
         </View>
 

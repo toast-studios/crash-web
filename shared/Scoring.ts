@@ -35,7 +35,9 @@ export function calculateScore(player: Player, roundEndTime: number): number {
   if (player.status === 'exited' && player.exitTime !== null) {
     return player.exitTime + player.boostCount * BOOST_TIME_BONUS;
   }
-  return roundEndTime + player.boostCount * BOOST_TIME_BONUS;
+  // Bust players: score = round end time, no boost bonus
+  // (bust ranking uses boostCount directly, not score)
+  return roundEndTime;
 }
 
 /**
