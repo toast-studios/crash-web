@@ -29,6 +29,9 @@ import { logger } from '../utils/logger';
 
 // Max wall-clock time after round end to still accept an in-flight exit message
 const EXIT_GRACE_LAG_MS = 2000;
+// Max seconds before round end that a valid exit tap could have occurred
+// (broadcast interval 0.1s + network 0.2s + reaction buffer = ~0.5s, use 1s for safety)
+const EXIT_MAX_ELAPSED_LAG = 1.0;
 
 interface HumanPlayerEntry {
   userId: string;
@@ -198,7 +201,8 @@ export class GameRoom {
       this.roundEndElapsed !== null &&
       Date.now() - this.roundEndedAt < EXIT_GRACE_LAG_MS &&
       clientElapsed !== undefined &&
-      clientElapsed < this.roundEndElapsed;
+      clientElapsed < this.roundEndElapsed &&
+      clientElapsed >= this.roundEndElapsed - EXIT_MAX_ELAPSED_LAG;
 
     if (this.phase !== 'running' && !isLateExit) {
       this.connections.send(userId, {
