@@ -35,7 +35,7 @@ export default function App() {
         setIsAuthenticated(true);
         if (!wsConnected) {
           wsConnected = true;
-          connectWebSocket(session.access_token);
+          connectWebSocket();
         }
       } else {
         setIsAuthenticated(false);
@@ -48,7 +48,7 @@ export default function App() {
         setIsAuthenticated(true);
         if (!wsConnected) {
           wsConnected = true;
-          connectWebSocket(session.access_token);
+          connectWebSocket();
         }
       } else {
         wsConnected = false;
@@ -60,8 +60,8 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const connectWebSocket = useCallback((token: string) => {
-    WebSocketService.connect(token);
+  const connectWebSocket = useCallback(() => {
+    WebSocketService.connect(() => AuthService.getToken());
 
     // Connection status listener
     WebSocketService.onStatusChange((status) => {
@@ -98,9 +98,7 @@ export default function App() {
 
   const handleAuth = useCallback(() => {
     setIsAuthenticated(true);
-    AuthService.getToken().then(token => {
-      if (token) connectWebSocket(token);
-    });
+    connectWebSocket();
   }, [connectWebSocket]);
 
   // Show auth screen if not authenticated

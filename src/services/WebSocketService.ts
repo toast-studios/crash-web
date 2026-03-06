@@ -17,7 +17,7 @@ const PING_INTERVAL = 5000; // 5s
 
 class WebSocketServiceClass {
   private ws: WebSocket | null = null;
-  private token: string | null = null;
+  private getToken: (() => Promise<string | null>) | null = null;
   private status: ConnectionStatus = 'disconnected';
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -27,9 +27,9 @@ class WebSocketServiceClass {
   private statusListeners = new Set<StatusListener>();
 
   /**
-   * Connect to the WebSocket server with the given auth token.
+   * Connect to the WebSocket server with a token getter (called fresh on every connect/reconnect).
    */
-  connect(token: string): void {
+  connect(getToken: () => Promise<string | null>): void {
     // Close existing connection before creating a new one
     if (this.ws) {
       const old = this.ws;
@@ -44,18 +44,30 @@ class WebSocketServiceClass {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.token = token;
+    this.getToken = getToken;
     this.reconnectAttempts = 0;
     this.doConnect();
   }
 
   private doConnect(): void {
-    if (!this.token) return;
+    if (!this.getToken) return;
 
     this.setStatus('connecting');
 
+    this.getToken().then(token => {
+      if (!token) {
+        this.setStatus('disconnected');
+        return;
+      }
+      this.openSocket(token);
+    }).catch(() => {
+      this.attemptReconnect();
+    });
+  }
+
+  private openSocket(token: string): void {
     try {
-      this.ws = new WebSocket(`${WS_SERVER_URL}?token=${this.token}`);
+      this.ws = new WebSocket(`${WS_SERVER_URL}?token=${token}`);
 
       this.ws.onopen = () => {
         this.setStatus('connected');
@@ -103,7 +115,7 @@ class WebSocketServiceClass {
    * Disconnect and stop reconnection.
    */
   disconnect(): void {
-    this.token = null;
+    this.getToken = null;
     this.reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // prevent reconnect
     this.stopPing();
     if (this.reconnectTimer) {
