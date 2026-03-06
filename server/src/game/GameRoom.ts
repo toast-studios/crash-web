@@ -216,7 +216,7 @@ export class GameRoom {
 
     const player = this.players[playerIdx];
     if (player.status !== 'alive') {
-      if (!inGrace) {
+      if (!isLateExit) {
         this.connections.send(userId, {
           type: 'error',
           payload: { code: ErrorCode.PLAYER_NOT_ALIVE, message: 'Player is not alive' },
