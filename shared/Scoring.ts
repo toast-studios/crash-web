@@ -64,11 +64,11 @@ export function rankPlayers(players: Player[], roundEndTime: number): Player[] {
 
   const ranked = [...exited, ...bust];
 
-  return ranked.map((player, index) => ({
-    ...player,
-    rank: index + 1,
-    prize: index < prizeDistribution.length
-      ? Math.round(PRIZE_POOL * prizeDistribution[index])
-      : 0,
-  }));
+  return ranked.map((player, index) => {
+    const exitedIndex = exited.findIndex(p => p.id === player.id);
+    const prize = exitedIndex !== -1 && exitedIndex < prizeDistribution.length
+      ? Math.round(PRIZE_POOL * prizeDistribution[exitedIndex])
+      : 0;
+    return { ...player, rank: index + 1, prize };
+  });
 }
