@@ -64,6 +64,9 @@ interface GameStore {
   stats: PlayerStats;
   balanceLoaded: boolean;
 
+  // Heat delta flash (for COOL/BOOST feedback on heat bar)
+  heatDeltaEvent: { delta: number; id: string } | null;
+
   // Online state
   isOnline: boolean;
   connectionStatus: ConnectionStatus;
@@ -80,6 +83,7 @@ interface GameStore {
 
   // Online actions
   setConnectionStatus: (status: ConnectionStatus) => void;
+  onPlayerAction: (action: 'cool' | 'boost' | 'exit') => void;
   joinQueue: () => void;
   leaveQueue: () => void;
   sendAction: (action: 'cool' | 'boost' | 'exit') => void;
@@ -134,6 +138,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastRoundProfit: 0,
   stats: DEFAULT_STATS,
   balanceLoaded: false,
+
+  heatDeltaEvent: null,
 
   // Online state — always online
   isOnline: true,
@@ -194,6 +200,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // === ONLINE ACTIONS ===
 
   setConnectionStatus: (status: ConnectionStatus) => set({ connectionStatus: status }),
+
+  onPlayerAction: (action: 'cool' | 'boost' | 'exit') => {
+    if (action === 'cool') {
+      set({ heatDeltaEvent: { delta: -8, id: `${Date.now()}-${Math.random()}` } });
+    } else if (action === 'boost') {
+      set({ heatDeltaEvent: { delta: +5, id: `${Date.now()}-${Math.random()}` } });
+    }
+  },
 
   joinQueue: () => {
     set({ matchmakingStatus: 'searching' });

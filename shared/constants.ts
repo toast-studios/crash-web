@@ -34,7 +34,7 @@ export const BET_AMOUNT = 10;
 export const COUNTDOWN_SECONDS = 3;
 
 // Players
-export const TOTAL_PLAYERS = 5;
+export const TOTAL_PLAYERS = 2;
 
 // Matchmaking constants
 export const MIN_REAL_PLAYERS = TOTAL_PLAYERS; // need full room of humans

@@ -37,6 +37,8 @@ export function GameScreen() {
   const boostUsesLeft = useGameStore(s => s.boostUsesLeft);
   const feedMessages = useGameStore(s => s.feedMessages);
 
+  const heatDeltaEvent = useGameStore(s => s.heatDeltaEvent);
+
   const useCool = useGameStore(s => s.useCool);
   const useBoost = useGameStore(s => s.useBoost);
   const exitRound = useGameStore(s => s.exitRound);
@@ -80,6 +82,31 @@ export function GameScreen() {
 
   const bustFlashStyle = useAnimatedStyle(() => ({
     backgroundColor: `rgba(255, 0, 0, ${bustFlash.value * 0.5})`,
+  }));
+
+  // Heat delta indicator
+  const [deltaText, setDeltaText] = useState<string | null>(null);
+  const [deltaPositive, setDeltaPositive] = useState(false);
+  const deltaOpacity = useSharedValue(0);
+  const deltaTranslateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (!heatDeltaEvent) return;
+    const isPositive = heatDeltaEvent.delta > 0;
+    setDeltaText(isPositive ? `+${heatDeltaEvent.delta}%` : `${heatDeltaEvent.delta}%`);
+    setDeltaPositive(isPositive);
+    deltaOpacity.value = 1;
+    deltaTranslateY.value = 0;
+    deltaOpacity.value = withSequence(
+      withTiming(1, { duration: 50 }),
+      withTiming(0, { duration: 600, easing: Easing.out(Easing.quad) }),
+    );
+    deltaTranslateY.value = withTiming(-28, { duration: 650, easing: Easing.out(Easing.quad) });
+  }, [heatDeltaEvent?.id]);
+
+  const deltaAnimStyle = useAnimatedStyle(() => ({
+    opacity: deltaOpacity.value,
+    transform: [{ translateY: deltaTranslateY.value }],
   }));
 
   // Screen shake
@@ -196,6 +223,11 @@ export function GameScreen() {
           </View>
           <View style={styles.heatBarContainer}>
             <HeatBar heat={heat} width={barWidth} />
+            {deltaText !== null && (
+              <Animated.Text style={[styles.heatDelta, deltaPositive ? styles.heatDeltaRed : styles.heatDeltaBlue, deltaAnimStyle]}>
+                {deltaText}
+              </Animated.Text>
+            )}
           </View>
         </View>
 
@@ -297,6 +329,20 @@ const styles = StyleSheet.create({
   },
   heatBarContainer: {
     alignItems: 'center',
+  },
+  heatDelta: {
+    position: 'absolute',
+    right: 8,
+    bottom: 0,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  heatDeltaRed: {
+    color: '#ff4444',
+  },
+  heatDeltaBlue: {
+    color: '#00d4ff',
   },
   multiplierSection: {
     alignItems: 'center',

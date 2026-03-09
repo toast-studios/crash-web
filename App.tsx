@@ -20,6 +20,7 @@ export default function App() {
   const onCountdown = useGameStore(s => s.onCountdown);
   const onRoundOver = useGameStore(s => s.onRoundOver);
   const onQueueStatus = useGameStore(s => s.onQueueStatus);
+  const onPlayerAction = useGameStore(s => s.onPlayerAction);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
@@ -86,6 +87,9 @@ export default function App() {
         case 'queue_status':
           onQueueStatus(message.payload.position);
           break;
+        case 'player_action':
+          onPlayerAction(message.payload.action);
+          break;
         case 'error':
           console.warn('[WS Error]', message.payload.code, message.payload.message);
           break;
@@ -94,7 +98,7 @@ export default function App() {
           break;
       }
     });
-  }, [onGameState, onMatchFound, onCountdown, onRoundOver, onQueueStatus, setConnectionStatus]);
+  }, [onGameState, onMatchFound, onCountdown, onRoundOver, onQueueStatus, onPlayerAction, setConnectionStatus]);
 
   const handleAuth = useCallback(() => {
     setIsAuthenticated(true);
