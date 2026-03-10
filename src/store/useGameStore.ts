@@ -240,8 +240,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       players: payload.players,
       feedMessages: payload.feedMessages,
       pool: payload.pool,
-      coolUsesLeft: myPlayer ? COOL_MAX_USES - myPlayer.coolCount : 0,
-      boostUsesLeft: myPlayer ? BOOST_MAX_USES - myPlayer.boostCount : 0,
+      coolUsesLeft: myPlayer ? COOL_MAX_USES - myPlayer.coolCount : state.coolUsesLeft,
+      boostUsesLeft: myPlayer ? BOOST_MAX_USES - myPlayer.boostCount : state.boostUsesLeft,
     });
   },
 
