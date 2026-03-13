@@ -1,25 +1,18 @@
-// === HeatWave PvP — Zustand Game Store (Online Only) ===
+// === HeatWave PvP — Zustand Game Store (Toast Integration) ===
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { FeedMessage, GamePhase, Player, GameStatePayload, RoundOverPayload, MatchFoundPayload } from '../types';
-import {
-  BET_AMOUNT,
-  BOOST_MAX_USES,
-  COOL_MAX_USES,
-  COUNTDOWN_SECONDS,
-  PRIZE_POOL,
-  STARTING_BALANCE,
-} from '../constants';
-import { WebSocketService } from '../services/WebSocketService';
-import type { ConnectionStatus } from '../services/WebSocketService';
+import type { FeedMessage, GamePhase, Player } from '../types';
+import { COUNTDOWN_SECONDS, TOTAL_PLAYERS } from '../constants';
+import { ToastSocketService } from '../services/ToastSocketService';
+import { ToastAuthService } from '../services/ToastAuthService';
+import type { ConnectionStatus } from '../services/ToastSocketService';
 
 // --- Persisted Stats ---
 interface PlayerStats {
   roundsPlayed: number;
   roundsWon: number;
   totalWinnings: number;
-  totalLosses: number;
   bestRank: number;
   currentStreak: number;
   bestStreak: number;
@@ -29,233 +22,274 @@ const DEFAULT_STATS: PlayerStats = {
   roundsPlayed: 0,
   roundsWon: 0,
   totalWinnings: 0,
-  totalLosses: 0,
   bestRank: 99,
   currentStreak: 0,
   bestStreak: 0,
 };
 
-const STORAGE_KEY_BALANCE = 'heatwave_balance';
 const STORAGE_KEY_STATS = 'heatwave_stats';
 
-// --- Matchmaking Status ---
 export type MatchmakingStatus = 'idle' | 'searching' | 'found';
+export type HeatZone = 'green' | 'yellow' | 'red' | 'critical';
+
+// --- Toast event payload types ---
+interface ToastMatchFoundPayload {
+  matchId: string;
+  yourGameUserId: string;
+  countdownSeconds: number;
+  players: Array<{ gameUserId: string; username: string }>;
+}
+
+interface ToastGameStateSyncPayload {
+  heat: number;
+  velocity: number;
+  elapsed: number;
+  heatZone: HeatZone;
+  phase: GamePhase;
+  serverTime: number;
+  players: Array<{
+    id: string;
+    name: string;
+    status: 'alive' | 'exited' | 'bust';
+    survivalTime: number;
+    boostCount: number;
+    coolCount: number;
+    prize: number;
+    rank: number | null;
+  }>;
+  feedMessages: Array<{
+    id: string;
+    playerName: string;
+    action: FeedMessage['action'];
+    survivalTime: number;
+  }>;
+}
+
+interface ToastGameStartPayload {
+  gameStartTime: number;
+  initialHeat: number;
+  initialVelocity: number;
+  coolMaxUses: number;
+  boostMaxUses: number;
+}
+
+interface ToastRoundOverPayload {
+  matchId: string;
+  winnerId: string;
+  gameEndType: 'GAME_OVER' | 'DRAW';
+  yourRank: number;
+  yourPrize: number;
+  yourSurvivalTime: number;
+  players: Array<{
+    id: string;
+    name: string;
+    status: 'alive' | 'exited' | 'bust';
+    survivalTime: number;
+    boostCount: number;
+    coolCount: number;
+    prize: number;
+    rank: number;
+  }>;
+}
+
+interface ToastPlayerActionPayload {
+  gameUserId: string;
+  username: string;
+  action: 'cool' | 'boost' | 'exit';
+  survivalTime: number;
+}
 
 interface GameStore {
   // Game state
   phase: GamePhase;
   elapsed: number;
   heat: number;
+  heatZone: HeatZone;
+  velocity: number;
   pool: number;
   countdown: number;
-  heatRateModifier: number;
-  heatRateModifierEnd: number;
   players: Player[];
   coolUsesLeft: number;
   boostUsesLeft: number;
+  coolMaxUses: number;
+  boostMaxUses: number;
   feedMessages: FeedMessage[];
 
-  // Balance
-  balance: number;
+  // Prize / stats
+  lastRoundPrize: number;
   betAmount: number;
-  lastRoundProfit: number;
-
-  // Stats
   stats: PlayerStats;
-  balanceLoaded: boolean;
 
   // Heat delta flash (for COOL/BOOST feedback on heat bar)
   heatDeltaEvent: { delta: number; id: string } | null;
 
   // Online state
-  isOnline: boolean;
   connectionStatus: ConnectionStatus;
   matchmakingStatus: MatchmakingStatus;
   myPlayerId: string | null;
-  queuePosition: number;
 
   // Actions
   useCool: () => void;
   useBoost: () => void;
   exitRound: () => void;
   resetLobby: () => void;
-  loadBalance: () => Promise<void>;
+  loadStats: () => Promise<void>;
 
   // Online actions
   setConnectionStatus: (status: ConnectionStatus) => void;
-  onPlayerAction: (action: 'cool' | 'boost' | 'exit') => void;
-  joinQueue: () => void;
+  joinQueue: () => Promise<void>;
   leaveQueue: () => void;
   sendAction: (action: 'cool' | 'boost' | 'exit') => void;
 
-  // Server event handlers
-  onGameState: (payload: GameStatePayload) => void;
-  onMatchFound: (payload: MatchFoundPayload) => void;
+  // Toast server event handlers
+  onMatchFound: (payload: ToastMatchFoundPayload) => void;
   onCountdown: (seconds: number) => void;
-  onRoundOver: (payload: RoundOverPayload) => void;
-  onQueueStatus: (position: number) => void;
+  onGameStart: (payload: ToastGameStartPayload) => void;
+  onGameState: (payload: ToastGameStateSyncPayload) => void;
+  onPlayerAction: (payload: ToastPlayerActionPayload) => void;
+  onRoundOver: (payload: ToastRoundOverPayload) => void;
 }
 
-function addFeedMessage(
-  messages: FeedMessage[],
-  playerName: string,
-  action: FeedMessage['action'],
-  time: number,
-): FeedMessage[] {
-  const msg: FeedMessage = {
-    id: `${Date.now()}-${Math.random()}`,
-    playerName,
-    action,
-    time,
-  };
-  return [msg, ...messages].slice(0, 20);
-}
-
-async function persistBalance(balance: number, stats: PlayerStats) {
+async function persistStats(stats: PlayerStats) {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY_BALANCE, JSON.stringify(balance));
     await AsyncStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
   } catch {
     // silent fail
   }
 }
 
+const INITIAL_COOL_MAX = 3; // default from Toast docs; overridden by gameStart
+const INITIAL_BOOST_MAX = 2;
+
 export const useGameStore = create<GameStore>((set, get) => ({
   phase: 'lobby',
   elapsed: 0,
   heat: 0,
-  pool: PRIZE_POOL,
+  heatZone: 'green',
+  velocity: 0,
+  pool: 0,
   countdown: COUNTDOWN_SECONDS,
-  heatRateModifier: 0,
-  heatRateModifierEnd: 0,
   players: [],
-  coolUsesLeft: COOL_MAX_USES,
-  boostUsesLeft: BOOST_MAX_USES,
+  coolUsesLeft: INITIAL_COOL_MAX,
+  boostUsesLeft: INITIAL_BOOST_MAX,
+  coolMaxUses: INITIAL_COOL_MAX,
+  boostMaxUses: INITIAL_BOOST_MAX,
   feedMessages: [],
 
-  balance: STARTING_BALANCE,
-  betAmount: BET_AMOUNT,
-  lastRoundProfit: 0,
+  lastRoundPrize: 0,
+  betAmount: 0,
   stats: DEFAULT_STATS,
-  balanceLoaded: false,
 
   heatDeltaEvent: null,
 
-  // Online state — always online
-  isOnline: true,
   connectionStatus: 'disconnected',
   matchmakingStatus: 'idle',
   myPlayerId: null,
-  queuePosition: 0,
 
-  loadBalance: async () => {
+  loadStats: async () => {
     try {
-      const [balStr, statsStr] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEY_BALANCE),
-        AsyncStorage.getItem(STORAGE_KEY_STATS),
-      ]);
-      const balance = balStr ? JSON.parse(balStr) : STARTING_BALANCE;
-      const stats = statsStr ? { ...DEFAULT_STATS, ...JSON.parse(statsStr) } : DEFAULT_STATS;
-      set({ balance, stats, balanceLoaded: true });
+      const stored = await AsyncStorage.getItem(STORAGE_KEY_STATS);
+      if (stored) {
+        set({ stats: { ...DEFAULT_STATS, ...JSON.parse(stored) } });
+      }
     } catch {
-      set({ balanceLoaded: true });
+      // silent fail
     }
   },
 
-  // === ACTIONS (always send via WebSocket) ===
+  // === ACTIONS ===
 
-  useCool: () => {
-    get().sendAction('cool');
-  },
-
-  useBoost: () => {
-    get().sendAction('boost');
-  },
+  useCool: () => get().sendAction('cool'),
+  useBoost: () => get().sendAction('boost'),
 
   exitRound: () => {
-    const { elapsed } = get();
-    WebSocketService.send({ type: 'action', payload: { action: 'exit', elapsed } });
+    get().sendAction('exit');
   },
 
   resetLobby: () => {
+    const { coolMaxUses, boostMaxUses } = get();
+    ToastAuthService.clearMatchContext();
     set({
       phase: 'lobby',
       elapsed: 0,
       heat: 0,
-      pool: PRIZE_POOL,
+      heatZone: 'green',
+      velocity: 0,
       countdown: COUNTDOWN_SECONDS,
-      heatRateModifier: 0,
-      heatRateModifierEnd: 0,
       players: [],
-      coolUsesLeft: COOL_MAX_USES,
-      boostUsesLeft: BOOST_MAX_USES,
+      coolUsesLeft: coolMaxUses,
+      boostUsesLeft: boostMaxUses,
       feedMessages: [],
-      lastRoundProfit: 0,
+      lastRoundPrize: 0,
       matchmakingStatus: 'idle',
       myPlayerId: null,
-      queuePosition: 0,
     });
   },
 
   // === ONLINE ACTIONS ===
 
-  setConnectionStatus: (status: ConnectionStatus) => set({ connectionStatus: status }),
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
 
-  onPlayerAction: (action: 'cool' | 'boost' | 'exit') => {
-    if (action === 'cool') {
-      set({ heatDeltaEvent: { delta: -8, id: `${Date.now()}-${Math.random()}` } });
-    } else if (action === 'boost') {
-      set({ heatDeltaEvent: { delta: +5, id: `${Date.now()}-${Math.random()}` } });
+  joinQueue: async () => {
+    set({ matchmakingStatus: 'searching' });
+    try {
+      const ctx = await ToastAuthService.fetchAndRegister();
+      set({ pool: ctx.lobbyDetails.winAmount, betAmount: ctx.lobbyDetails.entryFee });
+
+      ToastSocketService.emit('joinCrashGame', {
+        matchId: ctx.matchId,
+        totalPlayers: TOTAL_PLAYERS,
+        countdownSeconds: COUNTDOWN_SECONDS,
+        lobbyFormat: ctx.lobbyDetails.lobbyType,
+        playerDetails: {
+          gameUserId: ctx.gameUserId,
+          registrationId: ctx.registrationId,
+          partnerId: ctx.partnerId,
+          partnerUserId: ctx.partnerUserId,
+          username: ctx.username,
+          profilePicture: '',
+          lobbyDetails: ctx.lobbyDetails,
+        },
+      }, (ack: unknown) => {
+        const res = ack as { error: boolean; message: string } | undefined;
+        if (res?.error) {
+          console.warn('[joinCrashGame] Error:', res.message);
+          set({ matchmakingStatus: 'idle' });
+        }
+      });
+    } catch (err) {
+      console.error('[joinQueue] Failed:', err);
+      set({ matchmakingStatus: 'idle' });
     }
   },
 
-  joinQueue: () => {
-    set({ matchmakingStatus: 'searching' });
-    WebSocketService.send({ type: 'join_queue', payload: {} });
-  },
-
   leaveQueue: () => {
-    set({ matchmakingStatus: 'idle', queuePosition: 0 });
-    WebSocketService.send({ type: 'leave_queue', payload: {} });
+    set({ matchmakingStatus: 'idle' });
+    ToastAuthService.clearMatchContext();
   },
 
-  sendAction: (action: 'cool' | 'boost' | 'exit') => {
-    WebSocketService.send({ type: 'action', payload: { action } });
-  },
-
-  // === SERVER EVENT HANDLERS ===
-
-  onGameState: (payload: GameStatePayload) => {
-    const state = get();
-    const myPlayer = state.myPlayerId
-      ? payload.players.find((p: Player) => p.id === state.myPlayerId)
-      : null;
-
-    set({
-      phase: payload.phase,
-      elapsed: payload.elapsed,
-      heat: payload.heat,
-      heatRateModifier: payload.heatRateModifier,
-      heatRateModifierEnd: payload.heatRateModifierEnd,
-      players: payload.players,
-      feedMessages: payload.feedMessages,
-      pool: payload.pool,
-      coolUsesLeft: myPlayer ? COOL_MAX_USES - myPlayer.coolCount : state.coolUsesLeft,
-      boostUsesLeft: myPlayer ? BOOST_MAX_USES - myPlayer.boostCount : state.boostUsesLeft,
+  sendAction: (action) => {
+    ToastSocketService.emit('crashAction', { action }, (ack: unknown) => {
+      const res = ack as { error: boolean; message: string } | undefined;
+      if (res?.error) {
+        console.warn('[crashAction] Error:', res.message);
+      }
     });
   },
 
-  onMatchFound: (payload: MatchFoundPayload) => {
+  // === TOAST SERVER EVENT HANDLERS ===
+
+  onMatchFound: (payload) => {
     set({
       matchmakingStatus: 'found',
       phase: 'countdown',
-      countdown: payload.countdown_seconds,
-      myPlayerId: payload.yourPlayerId,
-      players: payload.players.map((p: MatchFoundPayload['players'][number]) => ({
-        id: p.id,
-        name: p.name,
-        isHuman: !p.isBot,
-        isBot: p.isBot,
+      countdown: payload.countdownSeconds,
+      myPlayerId: payload.yourGameUserId,
+      players: payload.players.map(p => ({
+        id: p.gameUserId,
+        name: p.username,
+        isHuman: true,
+        isBot: false,
         status: 'alive' as const,
         exitTime: null,
         boostCount: 0,
@@ -267,44 +301,119 @@ export const useGameStore = create<GameStore>((set, get) => ({
       feedMessages: [],
       heat: 0,
       elapsed: 0,
-      coolUsesLeft: COOL_MAX_USES,
-      boostUsesLeft: BOOST_MAX_USES,
     });
   },
 
-  onCountdown: (seconds: number) => {
+  onCountdown: (seconds) => {
     set({ countdown: seconds, phase: 'countdown' });
   },
 
-  onRoundOver: (payload: RoundOverPayload) => {
+  onGameStart: (payload) => {
+    set({
+      phase: 'running',
+      heat: payload.initialHeat,
+      velocity: payload.initialVelocity,
+      coolMaxUses: payload.coolMaxUses,
+      boostMaxUses: payload.boostMaxUses,
+      coolUsesLeft: payload.coolMaxUses,
+      boostUsesLeft: payload.boostMaxUses,
+    });
+  },
+
+  onGameState: (payload) => {
+    const state = get();
+    const myPlayer = state.myPlayerId
+      ? payload.players.find(p => p.id === state.myPlayerId)
+      : null;
+
+    const players: Player[] = payload.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      isHuman: true,
+      isBot: false,
+      status: p.status,
+      exitTime: p.survivalTime ?? null,
+      boostCount: p.boostCount,
+      coolCount: p.coolCount,
+      score: p.survivalTime ?? 0,
+      prize: p.prize,
+      rank: p.rank,
+    }));
+
+    const feedMessages: FeedMessage[] = payload.feedMessages.map(f => ({
+      id: f.id,
+      playerName: f.playerName,
+      action: f.action,
+      time: f.survivalTime,
+    }));
+
+    set({
+      phase: payload.phase,
+      elapsed: payload.elapsed,
+      heat: payload.heat,
+      heatZone: payload.heatZone,
+      velocity: payload.velocity,
+      players,
+      feedMessages,
+      coolUsesLeft: myPlayer
+        ? state.coolMaxUses - myPlayer.coolCount
+        : state.coolUsesLeft,
+      boostUsesLeft: myPlayer
+        ? state.boostMaxUses - myPlayer.boostCount
+        : state.boostUsesLeft,
+    });
+  },
+
+  onPlayerAction: (payload) => {
+    if (payload.action === 'cool') {
+      const zone = get().heatZone;
+      const delta =
+        zone === 'critical' ? -25
+        : zone === 'red' ? -20
+        : zone === 'yellow' ? -15
+        : -10;
+      set({ heatDeltaEvent: { delta, id: `${Date.now()}-${Math.random()}` } });
+    }
+  },
+
+  onRoundOver: (payload) => {
     const state = get();
     const newStats: PlayerStats = {
       ...state.stats,
       roundsPlayed: state.stats.roundsPlayed + 1,
-      roundsWon: state.stats.roundsWon + (payload.your_rank <= 3 ? 1 : 0),
-      totalWinnings: state.stats.totalWinnings + payload.your_prize,
-      totalLosses: state.stats.totalLosses + state.betAmount,
-      bestRank: Math.min(state.stats.bestRank, payload.your_rank),
-      currentStreak: payload.your_rank <= 3 ? state.stats.currentStreak + 1 : 0,
-      bestStreak: payload.your_rank <= 3
-        ? Math.max(state.stats.bestStreak, state.stats.currentStreak + 1)
-        : state.stats.bestStreak,
+      roundsWon: state.stats.roundsWon + (payload.yourRank === 1 ? 1 : 0),
+      totalWinnings: state.stats.totalWinnings + payload.yourPrize,
+      bestRank: Math.min(state.stats.bestRank, payload.yourRank),
+      currentStreak: payload.yourRank === 1 ? state.stats.currentStreak + 1 : 0,
+      bestStreak:
+        payload.yourRank === 1
+          ? Math.max(state.stats.bestStreak, state.stats.currentStreak + 1)
+          : state.stats.bestStreak,
     };
+
+    const players: Player[] = payload.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      isHuman: true,
+      isBot: false,
+      status: p.status,
+      exitTime: p.survivalTime ?? null,
+      boostCount: p.boostCount,
+      coolCount: p.coolCount,
+      score: p.survivalTime ?? 0,
+      prize: p.prize,
+      rank: p.rank,
+    }));
 
     set({
       phase: 'roundOver',
-      players: payload.players,
-      elapsed: payload.elapsed,
+      players,
+      elapsed: payload.yourSurvivalTime,
       heat: 100,
-      balance: payload.new_balance,
-      lastRoundProfit: payload.your_profit,
+      lastRoundPrize: payload.yourPrize,
       stats: newStats,
     });
 
-    void persistBalance(payload.new_balance, newStats);
-  },
-
-  onQueueStatus: (position: number) => {
-    set({ queuePosition: position });
+    void persistStats(newStats);
   },
 }));

@@ -26,19 +26,17 @@ type LobbyPhase = 'idle' | 'searching' | 'found';
 export function LobbyScreen() {
   const players = useGameStore(s => s.players);
   const pool = useGameStore(s => s.pool);
-  const balance = useGameStore(s => s.balance);
   const betAmount = useGameStore(s => s.betAmount);
   const stats = useGameStore(s => s.stats);
   const matchmakingStatus = useGameStore(s => s.matchmakingStatus);
   const joinQueue = useGameStore(s => s.joinQueue);
   const leaveQueue = useGameStore(s => s.leaveQueue);
-  const queuePosition = useGameStore(s => s.queuePosition);
 
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
   const [searchText, setSearchText] = useState('Searching for opponents');
 
   const buttonScale = useSharedValue(1);
-  const canAfford = balance >= betAmount;
+  const canAfford = true; // Entry fee managed by Toast gateway
 
   // Searching dots animation text
   useEffect(() => {
@@ -119,8 +117,8 @@ export function LobbyScreen() {
         {/* Balance Card */}
         <Animated.View entering={FadeIn.delay(100).duration(400)} style={styles.balanceCard}>
           <View style={styles.balanceMain}>
-            <Text style={styles.balanceLabel}>BALANCE</Text>
-            <Text style={styles.balanceAmount}>${balance.toLocaleString()}</Text>
+            <Text style={styles.balanceLabel}>TOTAL WON</Text>
+            <Text style={styles.balanceAmount}>${stats.totalWinnings.toLocaleString()}</Text>
           </View>
           <View style={styles.balanceStats}>
             <View style={styles.statItem}>
@@ -185,11 +183,6 @@ export function LobbyScreen() {
               <Animated.Text style={[styles.searchingText, searchPulseStyle]}>
                 {searchText}
               </Animated.Text>
-              {queuePosition > 0 && (
-                <Text style={styles.queuePositionText}>
-                  Position in queue: {queuePosition}
-                </Text>
-              )}
             </Animated.View>
           )}
 

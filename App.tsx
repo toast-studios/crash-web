@@ -1,122 +1,124 @@
-// === HeatWave PvP — Entry Point ===
+// === HeatWave PvP — Entry Point (Toast Integration) ===
 import React, { useEffect, useState, useCallback } from 'react';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useGameStore } from './src/store/useGameStore';
 import { LobbyScreen } from './src/screens/LobbyScreen';
 import { GameScreen } from './src/screens/GameScreen';
 import { RoundOverScreen } from './src/screens/RoundOverScreen';
-import { AuthScreen } from './src/screens/AuthScreen';
 import { initSounds } from './src/sounds/SoundManager';
-import { AuthService } from './src/services/AuthService';
-import { WebSocketService } from './src/services/WebSocketService';
-import type { ServerMessage } from './shared/types';
+import { ToastAuthService } from './src/services/ToastAuthService';
+import { ToastSocketService } from './src/services/ToastSocketService';
 
 export default function App() {
   const phase = useGameStore(s => s.phase);
-  const loadBalance = useGameStore(s => s.loadBalance);
+  const loadStats = useGameStore(s => s.loadStats);
   const setConnectionStatus = useGameStore(s => s.setConnectionStatus);
-  const onGameState = useGameStore(s => s.onGameState);
   const onMatchFound = useGameStore(s => s.onMatchFound);
   const onCountdown = useGameStore(s => s.onCountdown);
-  const onRoundOver = useGameStore(s => s.onRoundOver);
-  const onQueueStatus = useGameStore(s => s.onQueueStatus);
+  const onGameStart = useGameStore(s => s.onGameStart);
+  const onGameState = useGameStore(s => s.onGameState);
   const onPlayerAction = useGameStore(s => s.onPlayerAction);
+  const onRoundOver = useGameStore(s => s.onRoundOver);
+  const matchmakingStatus = useGameStore(s => s.matchmakingStatus);
+  const myPlayerId = useGameStore(s => s.myPlayerId);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [ready, setReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Check existing session on mount
+  const connectSocket = useCallback((token: string) => {
+    ToastSocketService.onStatusChange(setConnectionStatus);
+    ToastSocketService.connect(token);
+  }, [setConnectionStatus]);
+
+  // Re-emit joinCrashGame on socket reconnect if mid-search
   useEffect(() => {
-    initSounds();
-    loadBalance();
-
-    let wsConnected = false;
-
-    AuthService.getSession().then(session => {
-      if (session) {
-        setIsAuthenticated(true);
-        if (!wsConnected) {
-          wsConnected = true;
-          connectWebSocket();
+    const unsub = ToastSocketService.onStatusChange((status) => {
+      if (status === 'connected' && matchmakingStatus === 'searching') {
+        const ctx = ToastAuthService.getMatchContext();
+        if (ctx) {
+          ToastSocketService.emit('joinCrashGame', {
+            matchId: ctx.matchId,
+            totalPlayers: 2,
+            countdownSeconds: 3,
+            lobbyFormat: ctx.lobbyDetails.lobbyType,
+            playerDetails: {
+              gameUserId: ctx.gameUserId,
+              registrationId: ctx.registrationId,
+              partnerId: ctx.partnerId,
+              partnerUserId: ctx.partnerUserId,
+              username: ctx.username,
+              profilePicture: '',
+              lobbyDetails: ctx.lobbyDetails,
+            },
+          });
         }
-      } else {
-        setIsAuthenticated(false);
       }
     });
+    return unsub;
+  }, [matchmakingStatus, myPlayerId]);
 
-    // Listen for auth changes (fires on sign-in/sign-out, NOT for initial session)
-    const { unsubscribe } = AuthService.onAuthStateChange((session) => {
-      if (session) {
-        setIsAuthenticated(true);
-        if (!wsConnected) {
-          wsConnected = true;
-          connectWebSocket();
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      initSounds();
+      await loadStats();
+
+      try {
+        await ToastAuthService.init();
+        if (cancelled) return;
+
+        const token = ToastAuthService.getToken();
+        if (!token) throw new Error('No auth token after init');
+
+        // Register Toast socket event listeners
+        ToastSocketService.on('matchFound', onMatchFound);
+        ToastSocketService.on('countdown', (data: { secondsRemaining: number }) =>
+          onCountdown(data.secondsRemaining),
+        );
+        ToastSocketService.on('gameStart', onGameStart);
+        ToastSocketService.on('gameStateSync', onGameState);
+        ToastSocketService.on('playerAction', onPlayerAction);
+        ToastSocketService.on('roundOver', onRoundOver);
+        ToastSocketService.on('gameError', (data: { message: string }) => {
+          console.warn('[Toast gameError]', data.message);
+        });
+        ToastSocketService.on('matchNotFound', (data: { matchId: string }) => {
+          console.warn('[Toast matchNotFound]', data.matchId);
+        });
+
+        connectSocket(token);
+        setReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[App init]', err);
+          setAuthError('Failed to connect. Please reload.');
         }
-      } else {
-        wsConnected = false;
-        setIsAuthenticated(false);
-        WebSocketService.disconnect();
       }
-    });
+    }
 
-    return () => unsubscribe();
+    void init();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const connectWebSocket = useCallback(() => {
-    WebSocketService.connect(() => AuthService.getToken());
-
-    // Connection status listener
-    WebSocketService.onStatusChange((status) => {
-      setConnectionStatus(status);
-    });
-
-    // Server message listener
-    WebSocketService.onMessage((message: ServerMessage) => {
-      switch (message.type) {
-        case 'game_state':
-          onGameState(message.payload);
-          break;
-        case 'match_found':
-          onMatchFound(message.payload);
-          break;
-        case 'countdown':
-          onCountdown(message.payload.seconds_remaining);
-          break;
-        case 'round_over':
-          onRoundOver(message.payload);
-          break;
-        case 'queue_status':
-          onQueueStatus(message.payload.position);
-          break;
-        case 'player_action':
-          onPlayerAction(message.payload.action);
-          break;
-        case 'error':
-          console.warn('[WS Error]', message.payload.code, message.payload.message);
-          break;
-        case 'pong':
-          // Latency tracking could go here
-          break;
-      }
-    });
-  }, [onGameState, onMatchFound, onCountdown, onRoundOver, onQueueStatus, onPlayerAction, setConnectionStatus]);
-
-  const handleAuth = useCallback(() => {
-    setIsAuthenticated(true);
-    connectWebSocket();
-  }, [connectWebSocket]);
-
-  // Show auth screen if not authenticated
-  // null = still checking session, false = needs auth, true = authenticated
-  if (isAuthenticated === null) {
-    return <StatusBar style="light" />;
+  if (authError) {
+    return (
+      <View style={styles.center}>
+        <StatusBar style="light" />
+        <Text style={styles.errorText}>{authError}</Text>
+      </View>
+    );
   }
 
-  if (isAuthenticated === false) {
+  if (!ready) {
     return (
-      <>
+      <View style={styles.center}>
         <StatusBar style="light" />
-        <AuthScreen onAuth={handleAuth} />
-      </>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
     );
   }
 
@@ -129,3 +131,18 @@ export default function App() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    backgroundColor: '#0a0a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+});
