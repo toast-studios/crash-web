@@ -344,8 +344,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       myPlayerId: myGameUserId,
       coolMaxUses: payload.gameConfig.coolMaxUses,
       boostMaxUses: payload.gameConfig.boostMaxUses,
-      coolUsesLeft: payload.gameConfig.coolMaxUses,
-      boostUsesLeft: payload.gameConfig.boostMaxUses,
       players: payload.players.map(p => ({
         id: p.gameUserId,
         name: p.username,
