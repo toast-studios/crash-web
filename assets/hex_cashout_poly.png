@@ -1,0 +1,21 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 562.514 505.019" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Polygon 1" filter="url(#filter0_d_0_83)">
+<path d="M352.45 0C421.364 52.9297 498.231 123.333 558.514 431.192L4 497.019C267.607 331.245 405.145 233.042 352.45 0Z" fill="url(#paint0_linear_0_83)" shape-rendering="crispEdges"/>
+</g>
+<defs>
+<filter id="filter0_d_0_83" x="0" y="0" width="562.514" height="505.019" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_83"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_83" result="shape"/>
+</filter>
+<linearGradient id="paint0_linear_0_83" x1="265.493" y1="95.7098" x2="265.493" y2="497.019" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" stop-opacity="0.11"/>
+<stop offset="1" stop-color="white" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

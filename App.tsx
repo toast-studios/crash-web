@@ -14,6 +14,7 @@ export default function App() {
   const phase = useGameStore(s => s.phase);
   const loadStats = useGameStore(s => s.loadStats);
   const setConnectionStatus = useGameStore(s => s.setConnectionStatus);
+  const onGameTableInfo = useGameStore(s => s.onGameTableInfo);
   const onMatchFound = useGameStore(s => s.onMatchFound);
   const onCountdown = useGameStore(s => s.onCountdown);
   const onGameStart = useGameStore(s => s.onGameStart);
@@ -40,6 +41,7 @@ export default function App() {
 
         // Register socket event listeners (safe to do before connect)
         ToastSocketService.onStatusChange(setConnectionStatus);
+        ToastSocketService.on('gameTableInfo', onGameTableInfo);
         ToastSocketService.on('matchFound', onMatchFound);
         ToastSocketService.on('countdown', (data: { secondsRemaining: number }) =>
           onCountdown(data.secondsRemaining),

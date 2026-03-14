@@ -99,6 +99,28 @@ interface ToastPlayerActionPayload {
   survivalTime: number;
 }
 
+interface ToastGameConfig {
+  coolMaxUses: number;
+  boostMaxUses: number;
+  coolReductionGreen: number;
+  coolReductionYellow: number;
+  coolReductionRed: number;
+  coolReductionCritical: number;
+  boostIncreaseGreen: number;
+  boostIncreaseYellow: number;
+  boostIncreaseRed: number;
+  boostIncreaseCritical: number;
+}
+
+interface ToastGameTableInfoPayload {
+  matchId: string;
+  gameConfig: ToastGameConfig;
+  players: Array<{ gameUserId: string; username: string; status: string }>;
+}
+
+// Zone-based cool/boost config (set from gameTableInfo, used for heatDeltaEvent)
+let gameConfig: ToastGameConfig | null = null;
+
 interface GameStore {
   // Game state
   phase: GamePhase;
@@ -142,6 +164,7 @@ interface GameStore {
   sendAction: (action: 'cool' | 'boost' | 'exit') => void;
 
   // Toast server event handlers
+  onGameTableInfo: (payload: ToastGameTableInfoPayload) => void;
   onMatchFound: (payload: ToastMatchFoundPayload) => void;
   onCountdown: (seconds: number) => void;
   onGameStart: (payload: ToastGameStartPayload) => void;
@@ -263,6 +286,64 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // === TOAST SERVER EVENT HANDLERS ===
 
+  onGameTableInfo: (payload) => {
+    // Store game config for zone-based delta calculations
+    gameConfig = payload.gameConfig;
+
+    const session = ToastAuthService.getSession();
+    const myGameUserId = session?.gameUserId ?? null;
+
+    // Emit joinCrashGame with the server-provided matchId
+    const ctx = ToastAuthService.getMatchContext();
+    if (ctx) {
+      ToastSocketService.emit('joinCrashGame', {
+        matchId: payload.matchId,
+        totalPlayers: TOTAL_PLAYERS,
+        countdownSeconds: COUNTDOWN_SECONDS,
+        lobbyFormat: ctx.lobbyDetails.lobbyType,
+        playerDetails: {
+          gameUserId: myGameUserId ?? ctx.gameUserId,
+          registrationId: ctx.registrationId,
+          partnerId: ctx.partnerId,
+          partnerUserId: ctx.partnerUserId,
+          username: ctx.username,
+          profilePicture: '',
+          lobbyDetails: ctx.lobbyDetails,
+        },
+      }, (ack: unknown) => {
+        const res = ack as { error: boolean; message: string } | undefined;
+        if (res?.error) console.warn('[joinCrashGame] Error:', res.message);
+      });
+    }
+
+    set({
+      matchmakingStatus: 'found',
+      phase: 'countdown',
+      countdown: COUNTDOWN_SECONDS,
+      myPlayerId: myGameUserId,
+      coolMaxUses: payload.gameConfig.coolMaxUses,
+      boostMaxUses: payload.gameConfig.boostMaxUses,
+      coolUsesLeft: payload.gameConfig.coolMaxUses,
+      boostUsesLeft: payload.gameConfig.boostMaxUses,
+      players: payload.players.map(p => ({
+        id: p.gameUserId,
+        name: p.username,
+        isHuman: true,
+        isBot: false,
+        status: 'alive' as const,
+        exitTime: null,
+        boostCount: 0,
+        coolCount: 0,
+        score: 0,
+        prize: 0,
+        rank: null,
+      })),
+      feedMessages: [],
+      heat: 0,
+      elapsed: 0,
+    });
+  },
+
   onMatchFound: (payload) => {
     // Emit joinCrashGame now that we have the server-provided matchId
     const ctx = ToastAuthService.getMatchContext();
@@ -374,11 +455,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   onPlayerAction: (payload) => {
     if (payload.action === 'cool') {
       const zone = get().heatZone;
-      const delta =
-        zone === 'critical' ? -25
-        : zone === 'red' ? -20
-        : zone === 'yellow' ? -15
-        : -10;
+      const cfg = gameConfig;
+      const delta = cfg
+        ? -(zone === 'critical' ? cfg.coolReductionCritical
+            : zone === 'red' ? cfg.coolReductionRed
+            : zone === 'yellow' ? cfg.coolReductionYellow
+            : cfg.coolReductionGreen)
+        : -(zone === 'critical' ? 25 : zone === 'red' ? 20 : zone === 'yellow' ? 15 : 10);
+      set({ heatDeltaEvent: { delta, id: `${Date.now()}-${Math.random()}` } });
+    } else if (payload.action === 'boost') {
+      const zone = get().heatZone;
+      const cfg = gameConfig;
+      const delta = cfg
+        ? (zone === 'critical' ? cfg.boostIncreaseCritical
+            : zone === 'red' ? cfg.boostIncreaseRed
+            : zone === 'yellow' ? cfg.boostIncreaseYellow
+            : cfg.boostIncreaseGreen)
+        : (zone === 'critical' ? 25 : zone === 'red' ? 20 : zone === 'yellow' ? 15 : 10);
       set({ heatDeltaEvent: { delta, id: `${Date.now()}-${Math.random()}` } });
     }
   },

@@ -180,6 +180,10 @@ export const ToastAuthService = {
     return session?.gameAuthToken ?? null;
   },
 
+  getSession(): ToastSession | null {
+    return session;
+  },
+
   isAuthenticated(): boolean {
     return session !== null;
   },
