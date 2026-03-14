@@ -315,6 +315,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const session = ToastAuthService.getSession();
     const myGameUserId = session?.gameUserId ?? null;
 
+    // Server uses MongoDB IDs in gameStateSync — find our player by email to get the real ID
+    const myServerPlayer = payload.players.find(p => p.username === session?.email);
+    const myPlayerId = myServerPlayer?.gameUserId ?? myGameUserId;
+
     const ctx = ToastAuthService.getMatchContext();
     if (ctx) {
       ToastSocketService.emit('joinCrashGame', {
@@ -341,7 +345,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       matchmakingStatus: 'found',
       phase: 'countdown',
       countdown: COUNTDOWN_SECONDS,
-      myPlayerId: myGameUserId,
+      myPlayerId,
       coolMaxUses: payload.gameConfig.coolMaxUses,
       boostMaxUses: payload.gameConfig.boostMaxUses,
       players: payload.players.map(p => ({
