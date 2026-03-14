@@ -222,8 +222,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // === ACTIONS ===
 
-  useCool: () => get().sendAction('cool'),
-  useBoost: () => get().sendAction('boost'),
+  useCool: () => {
+    const { coolUsesLeft } = get();
+    if (coolUsesLeft <= 0) return;
+    set({ coolUsesLeft: coolUsesLeft - 1 });
+    ToastSocketService.emit('crashAction', { action: 'cool' }, (ack: unknown) => {
+      const res = ack as { error: boolean; message: string } | undefined;
+      if (res?.error) {
+        console.warn('[crashAction cool] Error:', res.message);
+        set({ coolUsesLeft: get().coolUsesLeft + 1 }); // restore on error
+      }
+    });
+  },
+
+  useBoost: () => {
+    const { boostUsesLeft } = get();
+    if (boostUsesLeft <= 0) return;
+    set({ boostUsesLeft: boostUsesLeft - 1 });
+    ToastSocketService.emit('crashAction', { action: 'boost' }, (ack: unknown) => {
+      const res = ack as { error: boolean; message: string } | undefined;
+      if (res?.error) {
+        console.warn('[crashAction boost] Error:', res.message);
+        set({ boostUsesLeft: get().boostUsesLeft + 1 }); // restore on error
+      }
+    });
+  },
 
   exitRound: () => {
     ToastSocketService.emit('crashAction', { action: 'exit_ship' });
