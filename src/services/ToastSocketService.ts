@@ -28,12 +28,15 @@ class ToastSocketServiceClass {
 
     this.setStatus('connecting');
 
-    this.socket = io(`${SOCKET_URL}?token=${token}`, {
+    this.socket = io(SOCKET_URL, {
+      auth: { token },
+      rememberUpgrade: true,
+      upgrade: true,
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
-      transports: ['websocket'],
     });
 
     this.socket.on('connect', () => {

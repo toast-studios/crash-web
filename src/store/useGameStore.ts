@@ -203,7 +203,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   useBoost: () => get().sendAction('boost'),
 
   exitRound: () => {
-    get().sendAction('exit');
+    ToastSocketService.emit('crashAction', { action: 'exit_ship' });
   },
 
   resetLobby: () => {
@@ -235,7 +235,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const ctx = await ToastAuthService.fetchAndRegister();
       set({ pool: ctx.lobbyDetails.winAmount, betAmount: ctx.lobbyDetails.entryFee });
-      // Socket is already connected — Toast server will send matchFound when a match is ready
+
+      // Connect socket now — this signals to Toast server that we're ready for a match
+      const token = ToastAuthService.getToken();
+      if (!token) throw new Error('No auth token');
+      ToastSocketService.connect(token);
     } catch (err) {
       console.error('[joinQueue] Failed:', err);
       set({ matchmakingStatus: 'idle' });
@@ -243,8 +247,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   leaveQueue: () => {
-    set({ matchmakingStatus: 'idle' });
+    ToastSocketService.disconnect();
     ToastAuthService.clearMatchContext();
+    set({ matchmakingStatus: 'idle' });
   },
 
   sendAction: (action) => {

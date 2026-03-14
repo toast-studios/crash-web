@@ -1,5 +1,5 @@
 // === HeatWave PvP — Entry Point (Toast Integration) ===
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useGameStore } from './src/store/useGameStore';
@@ -23,11 +23,6 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const connectSocket = useCallback((token: string) => {
-    ToastSocketService.onStatusChange(setConnectionStatus);
-    ToastSocketService.connect(token);
-  }, [setConnectionStatus]);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -37,13 +32,14 @@ export default function App() {
       await loadStats();
 
       try {
-        await ToastAuthService.init();
+        const { isRejoin } = await ToastAuthService.init();
         if (cancelled) return;
 
         const token = ToastAuthService.getToken();
         if (!token) throw new Error('No auth token after init');
 
-        // Register Toast socket event listeners
+        // Register socket event listeners (safe to do before connect)
+        ToastSocketService.onStatusChange(setConnectionStatus);
         ToastSocketService.on('matchFound', onMatchFound);
         ToastSocketService.on('countdown', (data: { secondsRemaining: number }) =>
           onCountdown(data.secondsRemaining),
@@ -59,7 +55,34 @@ export default function App() {
           console.warn('[Toast matchNotFound]', data.matchId);
         });
 
-        connectSocket(token);
+        if (isRejoin) {
+          // Reconnect to the existing game immediately
+          const ctx = ToastAuthService.getMatchContext();
+          ToastSocketService.connect(token);
+          if (ctx) {
+            // Re-emit joinCrashGame once socket connects
+            ToastSocketService.onStatusChange((status) => {
+              if (status === 'connected') {
+                ToastSocketService.emit('joinCrashGame', {
+                  matchId: ctx.matchId,
+                  totalPlayers: 2,
+                  countdownSeconds: 3,
+                  lobbyFormat: ctx.lobbyDetails.lobbyType,
+                  playerDetails: {
+                    gameUserId: ctx.gameUserId,
+                    registrationId: ctx.registrationId,
+                    partnerId: ctx.partnerId,
+                    partnerUserId: ctx.partnerUserId,
+                    username: ctx.username,
+                    profilePicture: '',
+                    lobbyDetails: ctx.lobbyDetails,
+                  },
+                });
+              }
+            });
+          }
+        }
+
         setReady(true);
       } catch (err) {
         if (!cancelled) {

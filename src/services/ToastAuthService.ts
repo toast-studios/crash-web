@@ -8,6 +8,7 @@ const TOAST_GATEWAY_URL = 'https://api-staging.toaststudios.io';
 const PARTNER_ID = 'ts';
 const GAME_NAME = 'crash';
 const STORAGE_KEY_SESSION = 'toast_session';
+const STORAGE_KEY_MATCH_CTX = 'toast_match_ctx';
 
 export interface LobbyDetails {
   _id: string;
@@ -48,25 +49,30 @@ function generateEmail(): string {
 }
 
 export const ToastAuthService = {
-  /** Load persisted session or perform a fresh silent auth. */
-  async init(): Promise<void> {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY_SESSION);
-      if (stored) {
-        session = JSON.parse(stored) as ToastSession;
-        return;
-      }
-    } catch {
-      // fall through to fresh auth
-    }
-    await ToastAuthService.authenticate();
+  /**
+   * Always calls /play/auth on startup to get a fresh token and check isRejoin.
+   * Returns isRejoin so App.tsx can decide whether to auto-reconnect.
+   */
+  async init(): Promise<{ isRejoin: boolean }> {
+    return ToastAuthService.authenticate();
   },
 
-  /** Authenticate with Toast gateway, persist the session. */
-  async authenticate(): Promise<void> {
-    const email = generateEmail();
-    const deviceId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  /** Authenticate with Toast gateway. Returns isRejoin flag. */
+  async authenticate(): Promise<{ isRejoin: boolean }> {
+    // Reuse stored identity (email/deviceId/userId) so the server
+    // can match us to an existing session and set isRejoin=true.
+    let storedSession: ToastSession | null = null;
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY_SESSION);
+      if (stored) storedSession = JSON.parse(stored) as ToastSession;
+    } catch {}
+
+    const email = storedSession?.email ?? generateEmail();
+    const deviceId = storedSession
+      ? `session_${storedSession.gameUserId}`
+      : `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const userId = storedSession?.gameUserId
+      ?? `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     const res = await fetch(
       `${TOAST_GATEWAY_URL}/play/auth?email=${encodeURIComponent(email)}&gameName=${GAME_NAME}&deviceType=android&deviceId=${encodeURIComponent(deviceId)}&userId=${encodeURIComponent(userId)}`,
@@ -79,6 +85,8 @@ export const ToastAuthService = {
       throw new Error('Toast auth: missing gameAuthToken in response');
     }
 
+    const isRejoin: boolean = data.data.isRejoin === true;
+
     session = {
       gameAuthToken: data.data.game.gameAuthToken,
       gameRefreshToken: data.data.game.gameRefreshToken,
@@ -87,12 +95,26 @@ export const ToastAuthService = {
     };
 
     await AsyncStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+
+    // On rejoin, load persisted matchContext
+    if (isRejoin) {
+      await ToastAuthService.loadMatchContext();
+    }
+
+    return { isRejoin };
+  },
+
+  /** Load persisted matchContext from AsyncStorage (used on rejoin). */
+  async loadMatchContext(): Promise<void> {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY_MATCH_CTX);
+      if (stored) matchContext = JSON.parse(stored) as MatchContext;
+    } catch {}
   },
 
   /**
    * Fetch available lobbies and register in the first one.
    * Returns the MatchContext needed for joinCrashGame.
-   * NOTE: matchId is set to registrationId — confirm with Toast if a separate matchId is returned.
    */
   async fetchAndRegister(): Promise<MatchContext> {
     if (!session) throw new Error('ToastAuthService: not authenticated');
@@ -110,8 +132,8 @@ export const ToastAuthService = {
       winAmount: number;
       currencyCode: string;
       currencySymbol?: string;
+      lobbyFormat?: string;
       lobbyType?: string;
-      format?: string;
     };
 
     const lobbyDetails: LobbyDetails = {
@@ -119,8 +141,8 @@ export const ToastAuthService = {
       entryFee: raw.entryFee,
       winAmount: raw.winAmount,
       currencyCode: raw.currencyCode,
-      currencySymbol: raw.currencySymbol ?? '₹',
-      lobbyType: raw.lobbyType ?? raw.format ?? 'DUEL',
+      currencySymbol: raw.currencySymbol ?? '$',
+      lobbyType: raw.lobbyFormat ?? raw.lobbyType ?? 'duel',
     };
 
     // Register in lobby
@@ -139,7 +161,7 @@ export const ToastAuthService = {
     const registrationId: string = regData.data.registrationId;
 
     matchContext = {
-      matchId: registrationId, // TODO: confirm with Toast if a separate matchId field exists
+      matchId: registrationId,
       registrationId,
       partnerId: PARTNER_ID,
       gameUserId: session.gameUserId,
@@ -147,6 +169,9 @@ export const ToastAuthService = {
       username: session.email.split('@')[0],
       lobbyDetails,
     };
+
+    // Persist so it survives page reload (needed for rejoin)
+    await AsyncStorage.setItem(STORAGE_KEY_MATCH_CTX, JSON.stringify(matchContext));
 
     return matchContext;
   },
@@ -165,11 +190,15 @@ export const ToastAuthService = {
 
   clearMatchContext(): void {
     matchContext = null;
+    AsyncStorage.removeItem(STORAGE_KEY_MATCH_CTX).catch(() => {});
   },
 
   async signOut(): Promise<void> {
     session = null;
     matchContext = null;
-    await AsyncStorage.removeItem(STORAGE_KEY_SESSION);
+    await Promise.all([
+      AsyncStorage.removeItem(STORAGE_KEY_SESSION),
+      AsyncStorage.removeItem(STORAGE_KEY_MATCH_CTX),
+    ]);
   },
 };
