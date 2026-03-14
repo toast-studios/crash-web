@@ -235,28 +235,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const ctx = await ToastAuthService.fetchAndRegister();
       set({ pool: ctx.lobbyDetails.winAmount, betAmount: ctx.lobbyDetails.entryFee });
-
-      ToastSocketService.emit('joinCrashGame', {
-        matchId: ctx.matchId,
-        totalPlayers: TOTAL_PLAYERS,
-        countdownSeconds: COUNTDOWN_SECONDS,
-        lobbyFormat: ctx.lobbyDetails.lobbyType,
-        playerDetails: {
-          gameUserId: ctx.gameUserId,
-          registrationId: ctx.registrationId,
-          partnerId: ctx.partnerId,
-          partnerUserId: ctx.partnerUserId,
-          username: ctx.username,
-          profilePicture: '',
-          lobbyDetails: ctx.lobbyDetails,
-        },
-      }, (ack: unknown) => {
-        const res = ack as { error: boolean; message: string } | undefined;
-        if (res?.error) {
-          console.warn('[joinCrashGame] Error:', res.message);
-          set({ matchmakingStatus: 'idle' });
-        }
-      });
+      // Socket is already connected — Toast server will send matchFound when a match is ready
     } catch (err) {
       console.error('[joinQueue] Failed:', err);
       set({ matchmakingStatus: 'idle' });
@@ -280,6 +259,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // === TOAST SERVER EVENT HANDLERS ===
 
   onMatchFound: (payload) => {
+    // Emit joinCrashGame now that we have the server-provided matchId
+    const ctx = ToastAuthService.getMatchContext();
+    if (ctx) {
+      ToastSocketService.emit('joinCrashGame', {
+        matchId: payload.matchId,
+        totalPlayers: TOTAL_PLAYERS,
+        countdownSeconds: payload.countdownSeconds,
+        lobbyFormat: ctx.lobbyDetails.lobbyType,
+        playerDetails: {
+          gameUserId: payload.yourGameUserId,
+          registrationId: ctx.registrationId,
+          partnerId: ctx.partnerId,
+          partnerUserId: ctx.partnerUserId,
+          username: ctx.username,
+          profilePicture: '',
+          lobbyDetails: ctx.lobbyDetails,
+        },
+      }, (ack: unknown) => {
+        const res = ack as { error: boolean; message: string } | undefined;
+        if (res?.error) console.warn('[joinCrashGame] Error:', res.message);
+      });
+    }
+
     set({
       matchmakingStatus: 'found',
       phase: 'countdown',

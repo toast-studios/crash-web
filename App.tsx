@@ -20,9 +20,6 @@ export default function App() {
   const onGameState = useGameStore(s => s.onGameState);
   const onPlayerAction = useGameStore(s => s.onPlayerAction);
   const onRoundOver = useGameStore(s => s.onRoundOver);
-  const matchmakingStatus = useGameStore(s => s.matchmakingStatus);
-  const myPlayerId = useGameStore(s => s.myPlayerId);
-
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -31,32 +28,6 @@ export default function App() {
     ToastSocketService.connect(token);
   }, [setConnectionStatus]);
 
-  // Re-emit joinCrashGame on socket reconnect if mid-search
-  useEffect(() => {
-    const unsub = ToastSocketService.onStatusChange((status) => {
-      if (status === 'connected' && matchmakingStatus === 'searching') {
-        const ctx = ToastAuthService.getMatchContext();
-        if (ctx) {
-          ToastSocketService.emit('joinCrashGame', {
-            matchId: ctx.matchId,
-            totalPlayers: 2,
-            countdownSeconds: 3,
-            lobbyFormat: ctx.lobbyDetails.lobbyType,
-            playerDetails: {
-              gameUserId: ctx.gameUserId,
-              registrationId: ctx.registrationId,
-              partnerId: ctx.partnerId,
-              partnerUserId: ctx.partnerUserId,
-              username: ctx.username,
-              profilePicture: '',
-              lobbyDetails: ctx.lobbyDetails,
-            },
-          });
-        }
-      }
-    });
-    return unsub;
-  }, [matchmakingStatus, myPlayerId]);
 
   useEffect(() => {
     let cancelled = false;
