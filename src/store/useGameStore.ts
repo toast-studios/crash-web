@@ -315,8 +315,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const session = ToastAuthService.getSession();
     const myGameUserId = session?.gameUserId ?? null;
 
-    // Server uses MongoDB IDs in gameStateSync — find our player by email to get the real ID
-    const myServerPlayer = payload.players.find(p => p.username === session?.email);
+    // In the webview-token flow, gameUserId is the JWT guid which matches the server's player ID
+    // directly. In the standard flow, find our player by matching the stored email against username.
+    const myServerPlayerByUserId = myGameUserId
+      ? payload.players.find(p => p.gameUserId === myGameUserId)
+      : null;
+    const myServerPlayerByEmail = session?.email
+      ? payload.players.find(p => p.username === session.email)
+      : null;
+    const myServerPlayer = myServerPlayerByUserId ?? myServerPlayerByEmail;
     const myPlayerId = myServerPlayer?.gameUserId ?? myGameUserId;
 
     const ctx = ToastAuthService.getMatchContext();

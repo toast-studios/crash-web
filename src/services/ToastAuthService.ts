@@ -48,7 +48,54 @@ function generateEmail(): string {
   return `player${randNum}@${orgName}.com`;
 }
 
+export interface WebviewTokenPayload {
+  guid: string;
+  un: string;
+  pp: string;
+}
+
 export const ToastAuthService = {
+  /**
+   * Parse ?at= and ?rt= from window.location.search.
+   * Returns { at, rt } if both are present, otherwise null.
+   */
+  parseUrlTokens(): { at: string; rt: string } | null {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const at = params.get('at');
+    const rt = params.get('rt');
+    if (at && rt) return { at, rt };
+    return null;
+  },
+
+  /**
+   * Initialise session from a webview-injected JWT (no HTTP calls).
+   * Decodes the JWT payload to extract guid, un, pp.
+   * Returns the decoded payload so App.tsx can use it immediately.
+   */
+  async initFromWebviewToken(
+    at: string,
+    rt: string,
+  ): Promise<WebviewTokenPayload> {
+    // Base64-decode the middle segment of the JWT (no verification needed client-side)
+    const segments = at.split('.');
+    if (segments.length < 2) throw new Error('Invalid JWT format');
+    const payload = JSON.parse(atob(segments[1])) as WebviewTokenPayload;
+
+    if (!payload.guid) throw new Error('JWT missing guid');
+
+    session = {
+      gameAuthToken: at,
+      gameRefreshToken: rt,
+      gameUserId: payload.guid,
+      email: payload.un,
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+
+    return payload;
+  },
+
   /**
    * Always calls /play/auth on startup to get a fresh token and check isRejoin.
    * Returns isRejoin so App.tsx can decide whether to auto-reconnect.

@@ -23,7 +23,8 @@ export default function App() {
   const onRoundOver = useGameStore(s => s.onRoundOver);
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-
+  // True when connected via ?at= webview token — skip LobbyScreen
+  const [isWebviewFlow, setIsWebviewFlow] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +34,39 @@ export default function App() {
       await loadStats();
 
       try {
+        // --- Webview token flow ---
+        const urlTokens = ToastAuthService.parseUrlTokens();
+        if (urlTokens) {
+          await ToastAuthService.initFromWebviewToken(urlTokens.at, urlTokens.rt);
+          if (cancelled) return;
+
+          // Register socket event listeners (safe to do before connect)
+          ToastSocketService.onStatusChange(setConnectionStatus);
+          ToastSocketService.on('gameTableInfo', onGameTableInfo);
+          ToastSocketService.on('matchFound', onMatchFound);
+          ToastSocketService.on('countdown', (data: { secondsRemaining: number }) =>
+            onCountdown(data.secondsRemaining),
+          );
+          ToastSocketService.on('gameStart', onGameStart);
+          ToastSocketService.on('gameStateSync', onGameState);
+          ToastSocketService.on('playerAction', onPlayerAction);
+          ToastSocketService.on('roundOver', onRoundOver);
+          ToastSocketService.on('gameError', (data: { message: string }) => {
+            console.warn('[Toast gameError]', data.message);
+          });
+          ToastSocketService.on('matchNotFound', (data: { matchId: string }) => {
+            console.warn('[Toast matchNotFound]', data.matchId);
+          });
+
+          // Connect directly with the JWT — server will pair the player automatically
+          ToastSocketService.connect(urlTokens.at);
+
+          setIsWebviewFlow(true);
+          setReady(true);
+          return;
+        }
+
+        // --- Existing Toast gateway flow (dev/testing) ---
         const { isRejoin } = await ToastAuthService.init();
         if (cancelled) return;
 
@@ -121,7 +155,13 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" />
-      {phase === 'lobby' && <LobbyScreen />}
+      {phase === 'lobby' && isWebviewFlow && (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.waitingText}>Finding match…</Text>
+        </View>
+      )}
+      {phase === 'lobby' && !isWebviewFlow && <LobbyScreen />}
       {(phase === 'countdown' || phase === 'running') && <GameScreen />}
       {phase === 'roundOver' && <RoundOverScreen />}
     </>
@@ -140,5 +180,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     paddingHorizontal: 24,
+  },
+  waitingText: {
+    color: '#FF6B35',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
