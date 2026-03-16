@@ -19,6 +19,18 @@ export interface LobbyDetails {
   lobbyType: string;
 }
 
+export interface LobbyInfo {
+  _id: string;
+  lobbyFormat: 'DUEL' | 'TOURNAMENT';
+  lobbyType: string;
+  entryFee: number;
+  winAmount: number;
+  currencyCode: string;
+  numPlayers: number;
+  rankRewards: unknown[];
+  isActive: boolean;
+}
+
 export interface ToastSession {
   gameAuthToken: string;
   gameRefreshToken: string;
@@ -220,6 +232,61 @@ export const ToastAuthService = {
     // Persist so it survives page reload (needed for rejoin)
     await AsyncStorage.setItem(STORAGE_KEY_MATCH_CTX, JSON.stringify(matchContext));
 
+    return matchContext;
+  },
+
+  /** Fetch a single lobby by ID. */
+  async fetchLobbyById(lobbyId: string): Promise<LobbyInfo> {
+    if (!session) throw new Error('ToastAuthService: not authenticated');
+    const res = await fetch(`${TOAST_GATEWAY_URL}/lobby/${lobbyId}`, {
+      headers: { Authorization: `Bearer ${session.gameAuthToken}` },
+    });
+    if (!res.ok) throw new Error(`Lobby fetch HTTP ${res.status}`);
+    const data = await res.json();
+    return data.lobby as LobbyInfo;
+  },
+
+  /** Register the authenticated user into a specific lobby by ID. */
+  async registerByLobbyId(lobbyId: string): Promise<MatchContext> {
+    if (!session) throw new Error('ToastAuthService: not authenticated');
+
+    const regRes = await fetch(`${TOAST_GATEWAY_URL}/game/register`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.gameAuthToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ lobbyId }),
+    });
+    if (!regRes.ok) throw new Error(`Register HTTP ${regRes.status}`);
+    const regData = await regRes.json();
+    if (!regData.success) throw new Error('Toast register failed');
+
+    const registrationId: string = regData.data.registrationId;
+
+    // Fetch lobby details to populate matchContext
+    const lobby = await ToastAuthService.fetchLobbyById(lobbyId);
+
+    const lobbyDetails: LobbyDetails = {
+      _id: lobby._id,
+      entryFee: lobby.entryFee,
+      winAmount: lobby.winAmount,
+      currencyCode: lobby.currencyCode,
+      currencySymbol: '$',
+      lobbyType: lobby.lobbyFormat,
+    };
+
+    matchContext = {
+      matchId: registrationId,
+      registrationId,
+      partnerId: PARTNER_ID,
+      gameUserId: session.gameUserId,
+      partnerUserId: session.gameUserId,
+      username: session.email.split('@')[0],
+      lobbyDetails,
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEY_MATCH_CTX, JSON.stringify(matchContext));
     return matchContext;
   },
 

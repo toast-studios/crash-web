@@ -159,7 +159,7 @@ interface GameStore {
 
   // Online actions
   setConnectionStatus: (status: ConnectionStatus) => void;
-  joinQueue: () => Promise<void>;
+  joinQueue: (lobbyId: string) => Promise<void>;
   leaveQueue: () => void;
   sendAction: (action: 'cool' | 'boost' | 'exit') => void;
 
@@ -276,10 +276,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
-  joinQueue: async () => {
+  joinQueue: async (lobbyId: string) => {
     set({ matchmakingStatus: 'searching' });
     try {
-      const ctx = await ToastAuthService.fetchAndRegister();
+      const ctx = await ToastAuthService.registerByLobbyId(lobbyId);
       set({ pool: ctx.lobbyDetails.winAmount, betAmount: ctx.lobbyDetails.entryFee });
 
       // Connect socket now — this signals to Toast server that we're ready for a match
