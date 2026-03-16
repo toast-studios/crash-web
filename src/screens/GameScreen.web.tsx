@@ -15,7 +15,6 @@ import { HeatBar } from '../components/game/HeatBar';
 import { MultiplierDisplay } from '../components/game/MultiplierDisplay';
 import { RocketScene } from '../components/game/RocketScene';
 import { ActionButtons } from '../components/game/ActionButtons';
-import { LobbyFeed } from '../components/game/LobbyFeed';
 import { CountdownOverlay } from '../components/game/CountdownOverlay';
 import { FireParticles } from '../animations/particles/FireParticles';
 import { IceParticles } from '../animations/particles/IceParticles';
@@ -298,24 +297,17 @@ export function GameScreen() {
           />
         </View>
 
-        {/* Player Feed */}
-        <View style={styles.feedSection}>
-          <LobbyFeed
-            players={players}
-            feedMessages={feedMessages}
-            showFeed
+        {/* Dashboard — pinned to bottom */}
+        <View style={styles.dashboardContainer}>
+          <ActionButtons
+            coolUsesLeft={coolUsesLeft}
+            boostUsesLeft={boostUsesLeft}
+            playerStatus={effectiveStatus}
+            onCool={handleCool}
+            onBoost={handleBoost}
+            onExit={handleExit}
           />
         </View>
-
-        {/* Action Buttons */}
-        <ActionButtons
-          coolUsesLeft={coolUsesLeft}
-          boostUsesLeft={boostUsesLeft}
-          playerStatus={effectiveStatus}
-          onCool={handleCool}
-          onBoost={handleBoost}
-          onExit={handleExit}
-        />
 
         {/* Particle Effects */}
         <FireParticles
@@ -458,6 +450,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 140,
   },
+  dashboardContainer: {
+    position: 'absolute',
+    bottom: 0,
+    height: "30%",
+    left: '50%',
+    transform: [{ translateX: '-50%' }],
+    width: '100%',
+    zIndex: 10,
+    backgroundColor: '#0d092e',
+    borderTopLeftRadius: 48,
+    borderTopRightRadius: 48,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    boxShadow: 'inset 0px -5px 0px 0px #25006d, inset 0px 30px 59px 0px rgba(110,36,237,0.3), inset 0px 6px 0px 0px rgba(130,58,255,0.6)',
+    paddingTop: 40,
+    paddingBottom: 16,
+  } as any,
   feedSection: {
     flex: 1,
     paddingHorizontal: 8,
