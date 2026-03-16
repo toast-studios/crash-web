@@ -21,6 +21,7 @@ export default function App() {
   const onGameState = useGameStore(s => s.onGameState);
   const onPlayerAction = useGameStore(s => s.onPlayerAction);
   const onRoundOver = useGameStore(s => s.onRoundOver);
+  const startMockGame = useGameStore(s => s.startMockGame);
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   // True when connected via ?at= webview token — skip LobbyScreen
@@ -30,6 +31,14 @@ export default function App() {
     let cancelled = false;
 
     async function init() {
+      // DEV: skip auth and show game screen immediately with mock data
+      if (__DEV__) {
+        initSounds();
+        await loadStats();
+        startMockGame();
+        setReady(true);
+        return;
+      }
       initSounds();
       await loadStats();
 
