@@ -26,6 +26,7 @@ import { Image } from 'react-native';
 import { COLORS } from '../constants';
 
 const crashWarsLogo = require('../../assets/figma/crash-wars-logo.png');
+const dashboardImg = require('../../assets/figma/dashboard.png');
 const CLOSE_BTN_URL = 'https://www.figma.com/api/mcp/asset/c5a10420-5daa-4f66-bee8-f13d4cf47dff';
 
 export function GameScreen() {
@@ -299,6 +300,11 @@ export function GameScreen() {
 
         {/* Dashboard — pinned to bottom */}
         <View style={styles.dashboardContainer}>
+          <Image
+            source={dashboardImg}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}
+            resizeMode="stretch"
+          />
           <ActionButtons
             coolUsesLeft={coolUsesLeft}
             boostUsesLeft={boostUsesLeft}
@@ -458,14 +464,15 @@ const styles = StyleSheet.create({
     transform: [{ translateX: '-50%' }],
     width: '100%',
     zIndex: 10,
+    overflow: 'hidden',
     backgroundColor: '#0d092e',
     borderTopLeftRadius: 48,
     borderTopRightRadius: 48,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    boxShadow: 'inset 0px -5px 0px 0px #25006d, inset 0px 30px 59px 0px rgba(110,36,237,0.3), inset 0px 6px 0px 0px rgba(130,58,255,0.6)',
     paddingTop: 40,
     paddingBottom: 16,
+    filter: 'drop-shadow(0px 0px 40px rgba(110, 36, 237, 0.9))',
   } as any,
   feedSection: {
     flex: 1,
