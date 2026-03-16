@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useGameStore } from '../store/useGameStore';
-import { HeatBar } from '../components/game/HeatBar';
+import { HeatProgressBar } from '../components/game/HeatProgressBar';
 import { MultiplierDisplay } from '../components/game/MultiplierDisplay';
 import { RocketScene } from '../components/game/RocketScene';
 import { ActionButtons } from '../components/game/ActionButtons';
@@ -194,8 +194,6 @@ export function GameScreen() {
     }
   }, [heat, phase]);
 
-  const barWidth = screenWidth - 32;
-
   // Countdown overlay
   if (phase === 'countdown') {
     return (
@@ -267,14 +265,6 @@ export function GameScreen() {
             );
           })}
 
-          <View style={styles.heatBarContainer}>
-            <HeatBar heat={heat} width={barWidth} />
-            {deltaText !== null && (
-              <Animated.Text style={[styles.heatDelta, deltaPositive ? styles.heatDeltaRed : styles.heatDeltaBlue, deltaAnimStyle]}>
-                {deltaText}
-              </Animated.Text>
-            )}
-          </View>
         </View>
 
         {/* Multiplier */}
@@ -300,11 +290,17 @@ export function GameScreen() {
 
         {/* Dashboard — pinned to bottom */}
         <View style={styles.dashboardContainer}>
-          <Image
-            source={dashboardImg}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}
-            resizeMode="stretch"
-          />
+          {/* Heat progress bar — straddles top edge, above overflow clip */}
+          <View style={{ position: 'absolute', top: -19, left: 0, right: 0, zIndex: 20 }}>
+            <HeatProgressBar heat={heat} />
+          </View>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
+            <Image
+              source={dashboardImg}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="stretch"
+            />
+          </View>
           <ActionButtons
             coolUsesLeft={coolUsesLeft}
             boostUsesLeft={boostUsesLeft}
@@ -429,23 +425,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  heatBarContainer: {
-    alignItems: 'center',
-  },
-  heatDelta: {
-    position: 'absolute',
-    right: 8,
-    bottom: 0,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  heatDeltaRed: {
-    color: '#ff4444',
-  },
-  heatDeltaBlue: {
-    color: '#00d4ff',
-  },
   multiplierSection: {
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -464,7 +443,6 @@ const styles = StyleSheet.create({
     transform: [{ translateX: '-50%' }],
     width: '100%',
     zIndex: 10,
-    overflow: 'hidden',
     backgroundColor: '#0d092e',
     borderTopLeftRadius: 48,
     borderTopRightRadius: 48,
