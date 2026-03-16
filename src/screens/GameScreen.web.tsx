@@ -12,7 +12,6 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useGameStore } from '../store/useGameStore';
 import { HeatProgressBar } from '../components/game/HeatProgressBar';
-import { MultiplierDisplay } from '../components/game/MultiplierDisplay';
 import { RocketScene } from '../components/game/RocketScene';
 import { ActionButtons } from '../components/game/ActionButtons';
 import { CountdownOverlay } from '../components/game/CountdownOverlay';
@@ -267,17 +266,7 @@ export function GameScreen() {
 
         </View>
 
-        {/* Multiplier */}
-        <View style={styles.multiplierSection}>
-          <MultiplierDisplay
-            elapsed={elapsed}
-            heat={heat}
-            playerStatus={effectiveStatus}
-            exitTime={optimisticExited ? optimisticExitTime : human.exitTime}
-          />
-        </View>
-
-        {/* Rocket Scene — centered, dedicated area */}
+{/* Rocket Scene — centered, dedicated area */}
         <View style={styles.rocketSection}>
           <RocketScene
             heat={heat}
@@ -435,11 +424,6 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 16,
     fontWeight: '800',
-  },
-  multiplierSection: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 4,
   },
   rocketSection: {
     alignItems: 'center',
