@@ -201,7 +201,7 @@ export function GameScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ScrollingBackground />
-        <CountdownOverlay onComplete={() => {}} />
+        <CountdownOverlay onComplete={() => { }} />
       </SafeAreaView>
     );
   }
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     paddingTop: 8,
     gap: 8,
   },
@@ -351,7 +351,8 @@ const styles = StyleSheet.create({
   },
   playersRow: {
     alignItems: 'flex-start',
-    paddingLeft: 8,
+    position: 'relative',
+    left: 42,
     marginTop: -8,
   },
   playersLabel: {
