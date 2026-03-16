@@ -290,6 +290,17 @@ export function GameScreen() {
 
         {/* Dashboard — pinned to bottom */}
         <View style={styles.dashboardContainer}>
+          {/* Timer + subtitle — centered above heat bar */}
+          <View style={{ position: 'absolute', top: -112, left: 0, right: 0, zIndex: 20, alignItems: 'center' }}>
+            <Text style={{ fontWeight: '700', fontStyle: 'italic', color: '#fff', lineHeight: 52, fontFamily: '"Alumni Sans", sans-serif' } as any}>
+              <Text style={{ fontSize: 48 }}>{elapsed.toFixed(2)}</Text>
+              <Text style={{ fontSize: 24 }}>s</Text>
+            </Text>
+            <Text style={{ fontWeight: '600', color: '#fff', fontSize: 13, marginTop: -4 }}>
+              Survive to score
+            </Text>
+          </View>
+
           {/* Heat progress bar — straddles top edge, above overflow clip */}
           <View style={{ position: 'absolute', top: -19, left: 0, right: 0, zIndex: 20 }}>
             <HeatProgressBar heat={heat} />
