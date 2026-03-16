@@ -18,11 +18,9 @@ import { useGameStore } from '../store/useGameStore';
 import { StarField } from '../components/shared/StarField';
 import { COLORS } from '../constants';
 import { TOTAL_PLAYERS } from '../../shared/constants';
-import { ToastAuthService, LobbyInfo } from '../services/ToastAuthService';
 
 
 type LobbyPhase = 'idle' | 'searching' | 'found';
-type JoiningFormat = 'DUEL' | 'TOURNAMENT' | null;
 
 export function LobbyScreen() {
   const players = useGameStore(s => s.players);
@@ -34,49 +32,15 @@ export function LobbyScreen() {
   const leaveQueue = useGameStore(s => s.leaveQueue);
 
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
-  const [joiningFormat, setJoiningFormat] = useState<JoiningFormat>(null);
+  const [joiningFormat, setJoiningFormat] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('Searching for opponents');
 
-  // Lobby data fetched on mount
-  const [duelLobby, setDuelLobby] = useState<LobbyInfo | null>(null);
-  const [tournamentLobby, setTournamentLobby] = useState<LobbyInfo | null>(null);
-  const [lobbiesLoading, setLobbiesLoading] = useState(true);
-  const [lobbiesError, setLobbiesError] = useState<string | null>(null);
+  // Read lobby IDs directly from URL — no prefetch needed
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const duelId = urlParams?.get('duelId') ?? null;
+  const tournamentId = urlParams?.get('tournamentId') ?? null;
 
   const buttonScale = useSharedValue(1);
-
-  // Read lobby IDs from URL params and fetch both in parallel
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const duelId = params.get('duelId');
-    const tournamentId = params.get('tournamentId');
-
-    if (!duelId && !tournamentId) {
-      setLobbiesLoading(false);
-      setLobbiesError('No lobby IDs in URL. Add ?duelId=xxx&tournamentId=yyy');
-      return;
-    }
-
-    const fetches: Promise<void>[] = [];
-
-    if (duelId) {
-      fetches.push(
-        ToastAuthService.fetchLobbyById(duelId)
-          .then(setDuelLobby)
-          .catch(() => {}),
-      );
-    }
-    if (tournamentId) {
-      fetches.push(
-        ToastAuthService.fetchLobbyById(tournamentId)
-          .then(setTournamentLobby)
-          .catch(() => {}),
-      );
-    }
-
-    Promise.all(fetches).finally(() => setLobbiesLoading(false));
-  }, []);
 
   // Searching dots animation text
   useEffect(() => {
@@ -97,15 +61,15 @@ export function LobbyScreen() {
     }
   }, [matchmakingStatus]);
 
-  const handleJoin = (lobby: LobbyInfo) => {
+  const handleJoin = (lobbyId: string, format: string) => {
     if (lobbyPhase !== 'idle') return;
     buttonScale.value = withSequence(
       withSpring(0.92, { damping: 15, stiffness: 400 }),
       withSpring(1, { damping: 10, stiffness: 200 }),
     );
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setJoiningFormat(lobby.lobbyFormat);
-    void joinQueue(lobby._id);
+    setJoiningFormat(format);
+    void joinQueue(lobbyId, format);
     setLobbyPhase('searching');
   };
 
@@ -283,42 +247,27 @@ export function LobbyScreen() {
               {joiningFormat === 'DUEL' ? 'FINDING DUEL...' : 'FINDING TOURNAMENT...'} TAP TO CANCEL
             </Text>
           </Pressable>
-        ) : lobbiesLoading ? (
-          <View style={styles.searchingButton}>
-            <ActivityIndicator size="small" color={COLORS.accent} />
-            <Text style={styles.searchingButtonText}>Loading lobbies…</Text>
-          </View>
-        ) : lobbiesError ? (
+        ) : !duelId && !tournamentId ? (
           <View style={styles.errorBox}>
-            <Text style={styles.errorBoxText}>{lobbiesError}</Text>
+            <Text style={styles.errorBoxText}>No lobby IDs in URL. Add ?duelId=xxx&tournamentId=yyy</Text>
           </View>
         ) : (
           <View style={styles.joinButtonRow}>
-            {/* Duel button */}
-            {duelLobby ? (
+            {duelId ? (
               <Pressable
-                onPress={() => handleJoin(duelLobby)}
-                disabled={!duelLobby.isActive}
-                style={[styles.joinButton, styles.joinButtonDuel, !duelLobby.isActive && styles.joinButtonDisabled]}
+                onPress={() => handleJoin(duelId, 'DUEL')}
+                style={[styles.joinButton, styles.joinButtonDuel]}
               >
                 <Text style={styles.joinButtonLabel}>⚔️ JOIN DUEL</Text>
-                <Text style={styles.joinButtonSub}>
-                  {duelLobby.isActive ? `${duelLobby.currencyCode} ${duelLobby.entryFee} · Win ${duelLobby.winAmount}` : 'Coming Soon'}
-                </Text>
               </Pressable>
             ) : null}
 
-            {/* Tournament button */}
-            {tournamentLobby ? (
+            {tournamentId ? (
               <Pressable
-                onPress={() => handleJoin(tournamentLobby)}
-                disabled={!tournamentLobby.isActive}
-                style={[styles.joinButton, styles.joinButtonTournament, !tournamentLobby.isActive && styles.joinButtonDisabled]}
+                onPress={() => handleJoin(tournamentId, 'TOURNAMENT')}
+                style={[styles.joinButton, styles.joinButtonTournament]}
               >
                 <Text style={styles.joinButtonLabel}>🏆 TOURNAMENT</Text>
-                <Text style={styles.joinButtonSub}>
-                  {tournamentLobby.isActive ? `${tournamentLobby.currencyCode} ${tournamentLobby.entryFee} · ${tournamentLobby.numPlayers} players` : 'Coming Soon'}
-                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -596,11 +545,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 1,
-  },
-  joinButtonSub: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 11,
-    fontWeight: '600',
   },
   errorBox: {
     backgroundColor: COLORS.surface,

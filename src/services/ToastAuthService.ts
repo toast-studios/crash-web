@@ -246,8 +246,8 @@ export const ToastAuthService = {
     return data.lobby as LobbyInfo;
   },
 
-  /** Register the authenticated user into a specific lobby by ID. */
-  async registerByLobbyId(lobbyId: string): Promise<MatchContext> {
+  /** Register the authenticated user into a specific lobby by ID. No prefetch needed. */
+  async registerByLobbyId(lobbyId: string, lobbyFormat: string = 'DUEL'): Promise<MatchContext> {
     if (!session) throw new Error('ToastAuthService: not authenticated');
 
     const regRes = await fetch(`${TOAST_GATEWAY_URL}/game/register`, {
@@ -264,16 +264,13 @@ export const ToastAuthService = {
 
     const registrationId: string = regData.data.registrationId;
 
-    // Fetch lobby details to populate matchContext
-    const lobby = await ToastAuthService.fetchLobbyById(lobbyId);
-
     const lobbyDetails: LobbyDetails = {
-      _id: lobby._id,
-      entryFee: lobby.entryFee,
-      winAmount: lobby.winAmount,
-      currencyCode: lobby.currencyCode,
-      currencySymbol: '$',
-      lobbyType: lobby.lobbyFormat,
+      _id: lobbyId,
+      entryFee: 0,
+      winAmount: 0,
+      currencyCode: 'INR',
+      currencySymbol: '₹',
+      lobbyType: lobbyFormat,
     };
 
     matchContext = {
