@@ -23,7 +23,11 @@ import { ExplosionEffect } from '../animations/particles/ExplosionEffect';
 import { useScreenShake } from '../animations/hooks/useScreenShake';
 import { playSound } from '../sounds/SoundManager';
 import { ScrollingBackground } from '../components/game/ScrollingBackground';
+import { Image } from 'react-native';
 import { COLORS } from '../constants';
+
+const crashWarsLogo = require('../../assets/figma/crash-wars-logo.png');
+const CLOSE_BTN_URL = 'https://www.figma.com/api/mcp/asset/c5a10420-5daa-4f66-bee8-f13d4cf47dff';
 
 export function GameScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -205,7 +209,17 @@ export function GameScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollingBackground />
-      <Animated.View style={[styles.container, shakeStyle]}>
+      {/* Top gradient overlay */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.48) 62.79%, #000 100%)',
+          zIndex: 1,
+        } as any}
+      />
+      <Animated.View style={[styles.container, shakeStyle, { zIndex: 2 }]}>
         {/* Red heat overlay */}
         <Animated.View style={[StyleSheet.absoluteFill, overlayStyle]} pointerEvents="none" />
         {/* COOL flash (blue) */}
@@ -215,11 +229,11 @@ export function GameScreen() {
         {/* Bust flash (deep red) */}
         <Animated.View style={[StyleSheet.absoluteFill, bustFlashStyle]} pointerEvents="none" />
 
-        {/* Top section: Pool + Heat Bar */}
+        {/* Top section: Logo + Pool + Heat Bar */}
         <View style={styles.topSection}>
           <View style={styles.poolRow}>
-            <Text style={styles.poolLabel}>POOL</Text>
-            <Text style={styles.poolAmount}>${pool}</Text>
+            <Image source={crashWarsLogo} style={styles.logo} resizeMode="contain" />
+            <img src={CLOSE_BTN_URL} style={{ width: 100, height: 100, cursor: 'pointer' } as any} alt="close" />
           </View>
           <View style={styles.heatBarContainer}>
             <HeatBar heat={heat} width={barWidth} />
@@ -315,6 +329,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  logo: {
+    width: 150,
+    height: 125,
   },
   poolLabel: {
     color: COLORS.textDim,
