@@ -236,6 +236,20 @@ export function GameScreen() {
             <Image source={crashWarsLogo} style={styles.logo} resizeMode="contain" />
             <img src={CLOSE_BTN_URL} style={{ width: 100, height: 100, cursor: 'pointer' } as any} alt="close" />
           </View>
+
+          {/* Players count — below logo/X row */}
+          <View style={styles.playersRow}>
+            <Text style={styles.playersLabel}>Players</Text>
+            <View style={styles.playersBadge}>
+              <img
+                src="https://www.figma.com/api/mcp/asset/6fd71d50-6425-4a79-b8f4-7bc7a4a15e73"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' } as any}
+                alt=""
+              />
+              <Text style={styles.playersCount}>{players.length}</Text>
+            </View>
+          </View>
+
           <View style={styles.heatBarContainer}>
             <HeatBar heat={heat} width={barWidth} />
             {deltaText !== null && (
@@ -334,6 +348,29 @@ const styles = StyleSheet.create({
   logo: {
     width: 150,
     height: 125,
+  },
+  playersRow: {
+    alignItems: 'flex-start',
+    paddingLeft: 8,
+    marginTop: -8,
+  },
+  playersLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  playersBadge: {
+    width: 52,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playersCount: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    zIndex: 1,
   },
   poolLabel: {
     color: COLORS.textDim,
