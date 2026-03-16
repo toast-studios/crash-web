@@ -250,6 +250,23 @@ export function GameScreen() {
             </View>
           </View>
 
+          {/* Action feed log */}
+          {feedMessages.slice(0, 4).map(msg => {
+            const actionColor = msg.action === 'cool' ? '#51eeff' : msg.action === 'boost' ? '#ffac37' : msg.action === 'bust' ? '#ff4444' : '#4ecf78';
+            const actionLabel = msg.action === 'cool' ? 'COOLED!' : msg.action === 'boost' ? 'HEATED!' : msg.action === 'bust' ? 'BUST!' : 'CASHED OUT!';
+            return (
+              <View key={msg.id} style={styles.feedLogRow}>
+                <Text style={[styles.feedLogName, { fontFamily: '"Alumni Sans", sans-serif' } as any]} numberOfLines={1}>{msg.playerName}</Text>
+                <Text style={[styles.feedLogAction, { color: actionColor, fontFamily: '"Alumni Sans", sans-serif' } as any]}>{actionLabel}</Text>
+                {msg.action === 'exit' && (
+                  <View style={[styles.prizeBadge, { borderColor: actionColor } as any]}>
+                    <Text style={[styles.prizeBadgeText, { color: actionColor } as any]}>${msg.time.toFixed(0)}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
           <View style={styles.heatBarContainer}>
             <HeatBar heat={heat} width={barWidth} />
             {deltaText !== null && (
@@ -372,6 +389,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     zIndex: 1,
+  },
+  feedLogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 42,
+    paddingVertical: 0,
+    marginVertical: -2,
+  },
+  feedLogName: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '400',
+    maxWidth: 130,
+  },
+  feedLogAction: {
+    fontSize: 12,
+    fontWeight: '900',
+    fontStyle: 'italic',
+  },
+  prizeBadge: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  prizeBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontStyle: 'italic',
   },
   poolLabel: {
     color: COLORS.textDim,
