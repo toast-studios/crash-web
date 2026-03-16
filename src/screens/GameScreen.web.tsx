@@ -209,13 +209,14 @@ export function GameScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollingBackground />
-      {/* Top gradient overlay */}
+      {/* Top gradient overlay — top 30% only */}
       <View
         pointerEvents="none"
         style={{
           position: 'absolute',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.48) 62.79%, #000 100%)',
+          top: 0, left: 0, right: 0,
+          height: '30%',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.48) 60%, rgba(0,0,0,0) 100%)',
           zIndex: 1,
         } as any}
       />
