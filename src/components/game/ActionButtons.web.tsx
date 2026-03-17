@@ -30,9 +30,10 @@ interface HexButtonProps {
   disabled: boolean;
   onPress: () => void;
   count?: number;
+  countTop?: string;
 }
 
-function HexButton({ size, uri, label, disabled, onPress, count }: HexButtonProps) {
+function HexButton({ size, uri, label, disabled, onPress, count, countTop = '20%' }: HexButtonProps) {
   const scale = useSharedValue(1);
 
   const handlePress = useCallback(() => {
@@ -61,7 +62,7 @@ function HexButton({ size, uri, label, disabled, onPress, count }: HexButtonProp
             {count !== undefined && (
               <div style={{
                 position: 'absolute',
-                top: '14%',
+                top: countTop,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 color: '#fff',
@@ -105,7 +106,7 @@ export function ActionButtons({ coolUsesLeft, boostUsesLeft, playerStatus, onCoo
       </View>
       {/* HEAT — top right */}
       <View style={{ position: 'absolute', top: '8%', right: '13%' }}>
-        <HexButton size={110} uri={uris.heat} label="HEAT" count={boostUsesLeft} disabled={!isAlive || boostUsesLeft <= 0} onPress={onBoost} />
+        <HexButton size={110} uri={uris.heat} label="HEAT" count={boostUsesLeft} countTop="25%" disabled={!isAlive || boostUsesLeft <= 0} onPress={onBoost} />
       </View>
       {/* CASHOUT — center, lower, overlapping COOL/HEAT */}
       <View style={{ position: 'absolute', top: '32%', left: '50%', transform: [{ translateX: -72 }] }}>
