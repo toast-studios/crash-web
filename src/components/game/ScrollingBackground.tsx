@@ -1,14 +1,28 @@
-// === Scrolling Space Background (Web — CSS animation) ===
-import React, { useEffect, useState } from 'react';
+// === Scrolling Space Background (Web — rAF driven, heat-reactive) ===
+import React, { useEffect, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import { Asset } from 'expo-asset';
+import { useGameStore } from '../../store/useGameStore';
 
 const bgModule = require('../../../assets/figma/space-bg-portrait.png');
-const STYLE_ID = 'scrolling-bg-style';
+
+const MIN_SPEED = 30;  // px/s at heat=0
+const MAX_SPEED = 120; // px/s at heat=100
 
 export function ScrollingBackground() {
   const { height: H } = useWindowDimensions();
   const [uri, setUri] = useState<string | null>(null);
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const posRef = useRef(0);
+  const lastTimeRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const heat = useGameStore(s => s.heat);
+  const heatRef = useRef(heat);
+
+  // Keep heatRef in sync without restarting the rAF loop
+  useEffect(() => {
+    heatRef.current = heat;
+  }, [heat]);
 
   useEffect(() => {
     Asset.fromModule(bgModule).downloadAsync().then((asset) => {
@@ -16,34 +30,33 @@ export function ScrollingBackground() {
     });
   }, []);
 
+  // Start rAF loop once image is ready
   useEffect(() => {
-    if (!uri) return;
-    let el = document.getElementById(STYLE_ID);
-    if (!el) {
-      el = document.createElement('style');
-      el.id = STYLE_ID;
-      document.head.appendChild(el);
+    if (!uri || !innerRef.current) return;
+
+    const totalHeight = H * 2;
+
+    function tick(timestamp: number) {
+      if (lastTimeRef.current === null) lastTimeRef.current = timestamp;
+      const delta = (timestamp - lastTimeRef.current) / 1000; // seconds
+      lastTimeRef.current = timestamp;
+
+      const speed = MIN_SPEED + (heatRef.current / 100) * (MAX_SPEED - MIN_SPEED);
+      posRef.current = (posRef.current + speed * delta) % H;
+
+      if (innerRef.current) {
+        innerRef.current.style.transform = `translateY(-${posRef.current}px)`;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
     }
-    el.textContent = `
-      @keyframes scrollUp {
-        0%   { transform: translateY(0); }
-        100% { transform: translateY(-50%); }
-      }
-      .scrolling-bg-inner {
-        position: absolute;
-        top: 0; left: 0;
-        width: 100%;
-        height: ${H * 2}px;
-        animation: scrollUp 20s linear infinite;
-        will-change: transform;
-      }
-      .scrolling-bg-inner img {
-        display: block;
-        width: 100%;
-        height: ${H}px;
-        object-fit: cover;
-      }
-    `;
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      lastTimeRef.current = null;
+    };
   }, [uri, H]);
 
   return (
@@ -52,9 +65,18 @@ export function ScrollingBackground() {
       pointerEvents="none"
     >
       {uri && (
-        <div className="scrolling-bg-inner">
-          <img src={uri} alt="" />
-          <img src={uri} alt="" />
+        <div
+          ref={innerRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            willChange: 'transform',
+          } as React.CSSProperties}
+        >
+          <img src={uri} alt="" style={{ display: 'block', width: '100%', height: H, objectFit: 'cover' } as React.CSSProperties} />
+          <img src={uri} alt="" style={{ display: 'block', width: '100%', height: H, objectFit: 'cover' } as React.CSSProperties} />
         </div>
       )}
     </View>
