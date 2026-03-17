@@ -342,6 +342,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0d0b2e',
+    overflow: 'hidden',
   },
   container: {
     flex: 1,
