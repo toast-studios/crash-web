@@ -156,7 +156,6 @@ interface GameStore {
   exitRound: () => void;
   resetLobby: () => void;
   loadStats: () => Promise<void>;
-  startMockGame: () => void;
 
   // Online actions
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -270,30 +269,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastRoundPrize: 0,
       matchmakingStatus: 'idle',
       myPlayerId: null,
-    });
-  },
-
-  startMockGame: () => {
-    const mockPlayers: Player[] = [
-      { id: 'mock-1', name: 'You', isHuman: true, isBot: false, status: 'alive', exitTime: null, boostCount: 1, coolCount: 1, score: 0, prize: 0, rank: null },
-      { id: 'mock-2', name: 'AvaPDaily', isHuman: false, isBot: true, status: 'alive', exitTime: null, boostCount: 0, coolCount: 0, score: 0, prize: 0, rank: null },
-      { id: 'mock-3', name: 'SkyRider', isHuman: false, isBot: true, status: 'exited', exitTime: 12.5, boostCount: 0, coolCount: 1, score: 12.5, prize: 10, rank: 1 },
-    ];
-    set({
-      phase: 'running',
-      elapsed: 8.5,
-      heat: 42,
-      heatZone: 'yellow',
-      velocity: 2.5,
-      pool: 20,
-      players: mockPlayers,
-      myPlayerId: 'mock-1',
-      coolUsesLeft: 3,
-      boostUsesLeft: 2,
-      feedMessages: [
-        { id: '1', playerName: 'SkyRider', action: 'exit', time: 12.5 },
-        { id: '2', playerName: 'AvaPDaily', action: 'cool', time: 8.1 },
-      ],
     });
   },
 
