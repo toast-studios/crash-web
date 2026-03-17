@@ -168,13 +168,14 @@ export function GameScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [exitRound, elapsed]);
 
-  // BGM — start on running, stop on round over
+  // BGM — start on running, stop on round over or unmount
   useEffect(() => {
     if (phase === 'running') {
       startBGM();
-    } else if (phase === 'roundOver') {
-      stopBGM();
     }
+    return () => {
+      stopBGM();
+    };
   }, [phase]);
 
   // Bust detection — explosion sound + heavy haptic + red flash

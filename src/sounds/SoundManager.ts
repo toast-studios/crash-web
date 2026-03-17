@@ -68,7 +68,7 @@ export async function playSound(name: SoundName, volume?: number): Promise<void>
 /**
  * Start BGM looping. Safe to call multiple times — won't restart if already playing.
  */
-export function startBGM(volume = 0.35): void {
+export function startBGM(volume = 0.3): void {
   try {
     if (!bgmPlayer) {
       bgmPlayer = createAudioPlayer(require('../../assets/sounds/bgm.mp3'));
