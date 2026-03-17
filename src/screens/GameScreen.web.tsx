@@ -267,13 +267,13 @@ export function GameScreen() {
 
         </View>
 
-{/* Rocket Scene — centered, dedicated area */}
-        <View style={styles.rocketSection}>
+{/* Rocket Scene — absolutely positioned over full game area */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <RocketScene
             heat={heat}
             elapsed={elapsed}
-            width={screenWidth * 0.5}
-            height={140}
+            width={screenWidth}
+            height={screenHeight}
             isRunning={phase === 'running'}
           />
         </View>
@@ -449,9 +449,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   rocketSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 140,
+    flex: 1,
   },
   dashboardContainer: {
     position: 'absolute',
