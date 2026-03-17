@@ -85,15 +85,15 @@ export function ActionButtons({ coolUsesLeft, boostUsesLeft, playerStatus, onCoo
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       {/* COOL — top left */}
-      <View style={{ position: 'absolute', top: '8%', left: '13%' }}>
+      <View style={{ position: 'absolute', top: '18%', left: '13%' }}>
         <HexButton size={110} uri={uris.cool} label="COOL" count={coolUsesLeft} disabled={!isAlive || coolUsesLeft <= 0} onPress={onCool} />
       </View>
       {/* HEAT — top right */}
-      <View style={{ position: 'absolute', top: '8%', right: '13%' }}>
+      <View style={{ position: 'absolute', top: '18%', right: '13%' }}>
         <HexButton size={110} uri={uris.heat} label="HEAT" count={boostUsesLeft} countTop="25%" disabled={!isAlive || boostUsesLeft <= 0} onPress={onBoost} />
       </View>
       {/* CASHOUT — center, lower, overlapping COOL/HEAT */}
-      <View style={{ position: 'absolute', top: '32%', left: '50%', transform: [{ translateX: -72 }] }}>
+      <View style={{ position: 'absolute', top: '42%', left: '50%', transform: [{ translateX: -72 }] }}>
         <HexButton size={145} uri={uris.exit} label="EXIT" disabled={!isAlive} onPress={onExit} />
       </View>
     </View>

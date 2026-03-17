@@ -26,6 +26,7 @@ import { COLORS } from '../constants';
 
 const crashWarsLogo = require('../../assets/figma/crash-wars-logo.png');
 const dashboardImg = require('../../assets/figma/dashboard.png');
+const aliveDippedImg = require('../../assets/figma/alivedipped.png');
 const CLOSE_BTN_URL = 'https://www.figma.com/api/mcp/asset/c5a10420-5daa-4f66-bee8-f13d4cf47dff';
 
 export function GameScreen() {
@@ -301,6 +302,27 @@ export function GameScreen() {
               resizeMode="stretch"
             />
           </View>
+          {/* Alive / Dipped banner — above hex buttons */}
+          <View style={{ position: 'absolute', top: '2%', left: 0, right: 0, alignItems: 'center', zIndex: 15 }}>
+            <View style={{ position: 'relative', width: 170, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+              <Image source={aliveDippedImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} resizeMode="stretch" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20, zIndex: 1, paddingTop: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ color: '#7fff6e', fontSize: 17, fontWeight: '800', fontStyle: 'italic', fontFamily: '"Alumni Sans", sans-serif' } as any}>
+                    {players.filter(p => p.status === 'alive').length}
+                  </Text>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: '"Alumni Sans", sans-serif' } as any}>Alive</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ color: '#ffcc44', fontSize: 17, fontWeight: '800', fontStyle: 'italic', fontFamily: '"Alumni Sans", sans-serif' } as any}>
+                    {players.filter(p => p.status === 'exited').length}
+                  </Text>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', fontFamily: '"Alumni Sans", sans-serif' } as any}>Dipped</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
           <ActionButtons
             coolUsesLeft={coolUsesLeft}
             boostUsesLeft={boostUsesLeft}
