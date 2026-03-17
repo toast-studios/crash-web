@@ -18,6 +18,9 @@ const soundFiles: Record<SoundName, AudioSource> = {
 const loadedSounds: Partial<Record<SoundName, AudioPlayer>> = {};
 let initialized = false;
 
+// BGM player — separate from SFX
+let bgmPlayer: AudioPlayer | null = null;
+
 /**
  * Pre-load all sounds into memory for zero-latency playback.
  * Call once at app startup.
@@ -63,6 +66,33 @@ export async function playSound(name: SoundName, volume?: number): Promise<void>
 }
 
 /**
+ * Start BGM looping. Safe to call multiple times — won't restart if already playing.
+ */
+export function startBGM(volume = 0.35): void {
+  try {
+    if (!bgmPlayer) {
+      bgmPlayer = createAudioPlayer(require('../../assets/sounds/bgm.mp3'));
+      bgmPlayer.volume = volume;
+      bgmPlayer.loop = true;
+    }
+    bgmPlayer.play();
+  } catch (e) {
+    // Silently fail
+  }
+}
+
+/**
+ * Stop BGM.
+ */
+export function stopBGM(): void {
+  try {
+    bgmPlayer?.pause();
+  } catch (e) {
+    // ignore
+  }
+}
+
+/**
  * Cleanup all loaded sounds. Call on unmount if needed.
  */
 export async function unloadSounds(): Promise<void> {
@@ -74,5 +104,7 @@ export async function unloadSounds(): Promise<void> {
       // ignore
     }
   }
+  bgmPlayer?.remove();
+  bgmPlayer = null;
   initialized = false;
 }

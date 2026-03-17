@@ -19,7 +19,7 @@ import { FireParticles } from '../animations/particles/FireParticles';
 import { IceParticles } from '../animations/particles/IceParticles';
 import { ExplosionEffect } from '../animations/particles/ExplosionEffect';
 import { useScreenShake } from '../animations/hooks/useScreenShake';
-import { playSound } from '../sounds/SoundManager';
+import { playSound, startBGM, stopBGM } from '../sounds/SoundManager';
 import { ScrollingBackground } from '../components/game/ScrollingBackground';
 import { Image } from 'react-native';
 import { COLORS } from '../constants';
@@ -167,6 +167,15 @@ export function GameScreen() {
     void playSound('exit');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [exitRound, elapsed]);
+
+  // BGM — start on running, stop on round over
+  useEffect(() => {
+    if (phase === 'running') {
+      startBGM();
+    } else if (phase === 'roundOver') {
+      stopBGM();
+    }
+  }, [phase]);
 
   // Bust detection — explosion sound + heavy haptic + red flash
   const prevPhaseRef = useRef(phase);
