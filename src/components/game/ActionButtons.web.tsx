@@ -29,9 +29,10 @@ interface HexButtonProps {
   label: string;
   disabled: boolean;
   onPress: () => void;
+  count?: number;
 }
 
-function HexButton({ size, uri, label, disabled, onPress }: HexButtonProps) {
+function HexButton({ size, uri, label, disabled, onPress, count }: HexButtonProps) {
   const scale = useSharedValue(1);
 
   const handlePress = useCallback(() => {
@@ -51,11 +52,31 @@ function HexButton({ size, uri, label, disabled, onPress }: HexButtonProps) {
     <Animated.View style={[{ width: size, height: size, opacity: disabled ? 0.4 : 1 }, animStyle]}>
       <Pressable onPressIn={handlePress} style={{ width: '100%', height: '100%' }}>
         {uri ? (
-          <img
-            src={uri}
-            alt={label}
-            style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' } as React.CSSProperties}
-          />
+          <div style={{ position: 'relative', width: '100%', height: '100%' } as React.CSSProperties}>
+            <img
+              src={uri}
+              alt={label}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' } as React.CSSProperties}
+            />
+            {count !== undefined && (
+              <div style={{
+                position: 'absolute',
+                top: '14%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: '#fff',
+                fontFamily: '"Alumni Sans", sans-serif',
+                fontWeight: 800,
+                fontSize: size * 0.2,
+                lineHeight: 1,
+                pointerEvents: 'none',
+                textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+                textAlign: 'center',
+              } as React.CSSProperties}>
+                {count}
+              </div>
+            )}
+          </div>
         ) : null}
       </Pressable>
     </Animated.View>
@@ -80,11 +101,11 @@ export function ActionButtons({ coolUsesLeft, boostUsesLeft, playerStatus, onCoo
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       {/* COOL — top left */}
       <View style={{ position: 'absolute', top: '8%', left: '13%' }}>
-        <HexButton size={110} uri={uris.cool} label="COOL" disabled={!isAlive || coolUsesLeft <= 0} onPress={onCool} />
+        <HexButton size={110} uri={uris.cool} label="COOL" count={coolUsesLeft} disabled={!isAlive || coolUsesLeft <= 0} onPress={onCool} />
       </View>
       {/* HEAT — top right */}
       <View style={{ position: 'absolute', top: '8%', right: '13%' }}>
-        <HexButton size={110} uri={uris.heat} label="HEAT" disabled={!isAlive || boostUsesLeft <= 0} onPress={onBoost} />
+        <HexButton size={110} uri={uris.heat} label="HEAT" count={boostUsesLeft} disabled={!isAlive || boostUsesLeft <= 0} onPress={onBoost} />
       </View>
       {/* CASHOUT — center, lower, overlapping COOL/HEAT */}
       <View style={{ position: 'absolute', top: '32%', left: '50%', transform: [{ translateX: -72 }] }}>
