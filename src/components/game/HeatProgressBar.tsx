@@ -11,7 +11,7 @@ const STYLE_ID = 'heat-bar-style';
 export function HeatProgressBar({ heat }: HeatProgressBarProps) {
   const { width: W } = useWindowDimensions();
   const fillRef = useRef<HTMLDivElement | null>(null);
-  const pct = Math.min(100, Math.max(0, heat));
+  const pct = Math.round(Math.min(100, Math.max(0, heat)));
 
   // Inject keyframes + styles once
   useEffect(() => {
