@@ -6,8 +6,8 @@ import { useGameStore } from '../../store/useGameStore';
 
 const bgModule = require('../../../assets/figma/space-bg-portrait.png');
 
-const MIN_SPEED = 30;  // px/s at heat=0
-const MAX_SPEED = 120; // px/s at heat=100
+const MIN_SPEED = 36;  // px/s at heat=0 (1.2x baseline)
+const MAX_SPEED = 144; // px/s at heat=100 (1.2x baseline)
 
 export function ScrollingBackground() {
   const { height: H } = useWindowDimensions();
