@@ -2,12 +2,6 @@
 // Layout: COOL | EXIT | HEAT
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Pressable } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withSequence,
-} from 'react-native-reanimated';
 import { Asset } from 'expo-asset';
 
 const coolModule = require('../../../assets/figma/btn-cool.png');
@@ -34,23 +28,13 @@ interface HexButtonProps {
 }
 
 function HexButton({ size, uri, label, disabled, onPress, count, countTop = '20%' }: HexButtonProps) {
-  const scale = useSharedValue(1);
-
   const handlePress = useCallback(() => {
     if (disabled) return;
-    scale.value = withSequence(
-      withSpring(0.88, { damping: 15, stiffness: 400 }),
-      withSpring(1, { damping: 12, stiffness: 200 }),
-    );
     onPress();
   }, [disabled, onPress]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
   return (
-    <Animated.View style={[{ width: size, height: size, opacity: disabled ? 0.4 : 1 }, animStyle]}>
+    <View style={{ width: size, height: size, opacity: disabled ? 0.4 : 1 }}>
       <Pressable onPressIn={handlePress} style={{ width: '100%', height: '100%' }}>
         {uri ? (
           <div style={{ position: 'relative', width: '100%', height: '100%' } as React.CSSProperties}>
@@ -80,7 +64,7 @@ function HexButton({ size, uri, label, disabled, onPress, count, countTop = '20%
           </div>
         ) : null}
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }
 
