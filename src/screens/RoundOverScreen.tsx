@@ -19,8 +19,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function RoundOverScreen() {
   const players = useGameStore(s => s.players);
   const elapsed = useGameStore(s => s.elapsed);
-  const balance = useGameStore(s => s.balance);
-  const lastRoundProfit = useGameStore(s => s.lastRoundProfit);
+  const lastRoundPrize = useGameStore(s => s.lastRoundPrize);
   const betAmount = useGameStore(s => s.betAmount);
   const resetLobby = useGameStore(s => s.resetLobby);
   const myPlayerId = useGameStore(s => s.myPlayerId);
@@ -33,8 +32,8 @@ export function RoundOverScreen() {
   const humanRank = human?.rank ?? 99;
   const humanPrize = human?.prize ?? 0;
   const humanScore = human?.score ?? 0;
-  const isProfit = lastRoundProfit > 0;
-  const isBreakEven = lastRoundProfit === 0;
+  const isProfit = lastRoundPrize > 0;
+  const isBreakEven = lastRoundPrize === 0;
 
   const handleReset = () => {
     buttonScale.value = withSequence(
@@ -75,7 +74,7 @@ export function RoundOverScreen() {
             isProfit && { color: COLORS.alive },
             !isProfit && !isBreakEven && { color: COLORS.bust },
           ]}>
-            {lastRoundProfit >= 0 ? '+' : '-'}${Math.abs(lastRoundProfit)}
+            {lastRoundPrize > 0 ? `+$${lastRoundPrize}` : '$0'}
           </Text>
           <Text style={styles.profitLabel}>
             {isProfit ? 'PROFIT' : isBreakEven ? 'BREAK EVEN' : 'LOSS'}
@@ -109,9 +108,9 @@ export function RoundOverScreen() {
             </Text>
           </View>
           <View style={[styles.summaryRow, styles.summaryRowBorder]}>
-            <Text style={styles.summaryLabel}>BALANCE</Text>
+            <Text style={styles.summaryLabel}>PRIZE</Text>
             <Text style={[styles.summaryValue, { color: COLORS.text }]}>
-              ${balance.toLocaleString()}
+              ${humanPrize.toLocaleString()}
             </Text>
           </View>
         </Animated.View>

@@ -1,4 +1,4 @@
-// === Pre-Round Lobby Screen with Matchmaking ===
+// === Pre-Round Lobby Screen with Duel / Tournament Matchmaking ===
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
 import Animated, {
@@ -19,26 +19,28 @@ import { StarField } from '../components/shared/StarField';
 import { COLORS } from '../constants';
 import { TOTAL_PLAYERS } from '../../shared/constants';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type LobbyPhase = 'idle' | 'searching' | 'found';
 
 export function LobbyScreen() {
   const players = useGameStore(s => s.players);
   const pool = useGameStore(s => s.pool);
-  const balance = useGameStore(s => s.balance);
   const betAmount = useGameStore(s => s.betAmount);
   const stats = useGameStore(s => s.stats);
   const matchmakingStatus = useGameStore(s => s.matchmakingStatus);
   const joinQueue = useGameStore(s => s.joinQueue);
   const leaveQueue = useGameStore(s => s.leaveQueue);
-  const queuePosition = useGameStore(s => s.queuePosition);
 
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
+  const [joiningFormat, setJoiningFormat] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('Searching for opponents');
 
+  // Read lobby IDs directly from URL — no prefetch needed
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const duelId = urlParams?.get('duelId') ?? null;
+  const tournamentId = urlParams?.get('tournamentId') ?? null;
+
   const buttonScale = useSharedValue(1);
-  const canAfford = balance >= betAmount;
 
   // Searching dots animation text
   useEffect(() => {
@@ -59,21 +61,22 @@ export function LobbyScreen() {
     }
   }, [matchmakingStatus]);
 
-  const handleFindMatch = () => {
-    if (!canAfford || lobbyPhase !== 'idle') return;
+  const handleJoin = (lobbyId: string, format: string) => {
+    if (lobbyPhase !== 'idle') return;
     buttonScale.value = withSequence(
       withSpring(0.92, { damping: 15, stiffness: 400 }),
       withSpring(1, { damping: 10, stiffness: 200 }),
     );
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-    joinQueue();
+    setJoiningFormat(format);
+    void joinQueue(lobbyId, format);
     setLobbyPhase('searching');
   };
 
   const handleCancel = () => {
     leaveQueue();
     setLobbyPhase('idle');
+    setJoiningFormat(null);
   };
 
   const buttonStyle = useAnimatedStyle(() => ({
@@ -119,8 +122,8 @@ export function LobbyScreen() {
         {/* Balance Card */}
         <Animated.View entering={FadeIn.delay(100).duration(400)} style={styles.balanceCard}>
           <View style={styles.balanceMain}>
-            <Text style={styles.balanceLabel}>BALANCE</Text>
-            <Text style={styles.balanceAmount}>${balance.toLocaleString()}</Text>
+            <Text style={styles.balanceLabel}>TOTAL WON</Text>
+            <Text style={styles.balanceAmount}>${stats.totalWinnings.toLocaleString()}</Text>
           </View>
           <View style={styles.balanceStats}>
             <View style={styles.statItem}>
@@ -185,11 +188,6 @@ export function LobbyScreen() {
               <Animated.Text style={[styles.searchingText, searchPulseStyle]}>
                 {searchText}
               </Animated.Text>
-              {queuePosition > 0 && (
-                <Text style={styles.queuePositionText}>
-                  Position in queue: {queuePosition}
-                </Text>
-              )}
             </Animated.View>
           )}
 
@@ -236,37 +234,43 @@ export function LobbyScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky Bottom Button */}
+      {/* Sticky Bottom Buttons */}
       <View style={styles.stickyBottom}>
-        {lobbyPhase === 'idle' && (
-          <AnimatedPressable
-            onPress={handleFindMatch}
-            style={[
-              styles.startButton,
-              !canAfford && styles.startButtonDisabled,
-              buttonStyle,
-            ]}
-          >
-            <Text style={styles.startText}>
-              {canAfford ? 'FIND MATCH' : 'INSUFFICIENT FUNDS'}
-            </Text>
-          </AnimatedPressable>
-        )}
-
-        {lobbyPhase === 'searching' && (
-          <Pressable onPress={handleCancel} style={styles.searchingButton}>
-            <ActivityIndicator size="small" color={COLORS.accent} />
-            <Text style={styles.searchingButtonText}>MATCHMAKING...</Text>
-          </Pressable>
-        )}
-
-        {lobbyPhase === 'found' && (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            style={styles.foundButton}
-          >
+        {lobbyPhase === 'found' ? (
+          <Animated.View entering={FadeIn.duration(300)} style={styles.foundButton}>
             <Text style={styles.foundText}>MATCH FOUND — STARTING...</Text>
           </Animated.View>
+        ) : lobbyPhase === 'searching' ? (
+          <Pressable onPress={handleCancel} style={styles.searchingButton}>
+            <ActivityIndicator size="small" color={COLORS.accent} />
+            <Text style={styles.searchingButtonText}>
+              {joiningFormat === 'DUEL' ? 'FINDING DUEL...' : 'FINDING TOURNAMENT...'} TAP TO CANCEL
+            </Text>
+          </Pressable>
+        ) : !duelId && !tournamentId ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorBoxText}>No lobby IDs in URL. Add ?duelId=xxx&tournamentId=yyy</Text>
+          </View>
+        ) : (
+          <View style={styles.joinButtonRow}>
+            {duelId ? (
+              <Pressable
+                onPress={() => handleJoin(duelId, 'DUEL')}
+                style={[styles.joinButton, styles.joinButtonDuel]}
+              >
+                <Text style={styles.joinButtonLabel}>⚔️ JOIN DUEL</Text>
+              </Pressable>
+            ) : null}
+
+            {tournamentId ? (
+              <Pressable
+                onPress={() => handleJoin(tournamentId, 'TOURNAMENT')}
+                style={[styles.joinButton, styles.joinButtonTournament]}
+              >
+                <Text style={styles.joinButtonLabel}>🏆 TOURNAMENT</Text>
+              </Pressable>
+            ) : null}
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -484,23 +488,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: COLORS.textMuted + '66',
   },
-  startButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  startButtonDisabled: {
-    backgroundColor: COLORS.textMuted,
-    opacity: 0.5,
-  },
-  startText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
   searchingButton: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -531,5 +518,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: 1.5,
+  },
+  joinButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginVertical: 8,
+  },
+  joinButton: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  joinButtonDuel: {
+    backgroundColor: COLORS.accent,
+  },
+  joinButtonTournament: {
+    backgroundColor: '#7c3aed',
+  },
+  joinButtonDisabled: {
+    opacity: 0.45,
+  },
+  joinButtonLabel: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  errorBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    padding: 16,
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  errorBoxText: {
+    color: '#ff4444',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
