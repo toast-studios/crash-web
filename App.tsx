@@ -25,6 +25,15 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   // True when connected via ?at= webview token — skip LobbyScreen
   const [isWebviewFlow, setIsWebviewFlow] = useState(false);
+  // Delay RoundOverScreen so bust Lottie animation can play
+  const [showRoundOver, setShowRoundOver] = useState(false);
+  useEffect(() => {
+    if (phase === 'roundOver') {
+      const t = setTimeout(() => setShowRoundOver(true), 2000);
+      return () => clearTimeout(t);
+    }
+    setShowRoundOver(false);
+  }, [phase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,8 +171,8 @@ export default function App() {
         </View>
       )}
       {phase === 'lobby' && !isWebviewFlow && <LobbyScreen />}
-      {(phase === 'countdown' || phase === 'running') && <GameScreen />}
-      {phase === 'roundOver' && <RoundOverScreen />}
+      {(phase === 'countdown' || phase === 'running' || (phase === 'roundOver' && !showRoundOver)) && <GameScreen />}
+      {phase === 'roundOver' && showRoundOver && <RoundOverScreen />}
     </>
   );
 }
