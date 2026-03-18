@@ -155,7 +155,6 @@ export function GameScreen() {
   }));
 
   // Screen shake
-  const shakeStyle = useScreenShake(heat, 80, effectiveStatus === 'exited');
 
   // Red overlay based on heat
   const heatShared = useSharedValue(0);
@@ -271,7 +270,7 @@ export function GameScreen() {
           zIndex: 1,
         } as any}
       />
-      <Animated.View style={[styles.container, shakeStyle, { zIndex: 2 }]}>
+      <Animated.View style={[styles.container, { zIndex: 2 }]}>
         {/* Red heat overlay */}
         <Animated.View style={[StyleSheet.absoluteFill, overlayStyle]} pointerEvents="none" />
         {/* COOL flash (blue) */}
