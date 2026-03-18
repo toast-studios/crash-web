@@ -1,4 +1,4 @@
-// === Rocket Scene — Web (PNG rocket + curved SVG exhaust trail) ===
+// === Rocket Scene — Web (PNG rocket + curved SVG exhaust trail + Lottie blast) ===
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated, {
@@ -10,6 +10,8 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { Asset } from 'expo-asset';
+import Lottie from 'lottie-react';
+import SpaceshipBlast from '../../../assets/lottie/SpaceshipBlast.json';
 
 const rocketModule = require('../../../assets/figma/rocket.png');
 
@@ -17,9 +19,8 @@ const ROCKET_W    = 90;
 const ROCKET_H    = 110;
 const TRAIL_W     = 380;
 const TRAIL_H     = 500;
-// Trail origin: overlaps flame area so there's no gap at nozzle
 const NOZZLE_Y    = ROCKET_H - 35;
-const NOZZLE_CX   = ROCKET_W / 2;   // 45
+const NOZZLE_CX   = ROCKET_W / 2;
 const NOZZLE_HALF = 8;
 
 interface RocketSceneProps {
@@ -33,6 +34,7 @@ interface RocketSceneProps {
 export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning }: RocketSceneProps) {
   const width = Math.floor(rawWidth);
   const [rocketUri, setRocketUri] = useState<string | null>(null);
+  const isBusting = heat >= 100;
 
   useEffect(() => {
     Asset.fromModule(rocketModule).downloadAsync().then(a => setRocketUri(a.uri));
@@ -49,7 +51,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
   const trailScale   = useSharedValue(1);
 
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && !isBusting) {
       trailOpacity.value = withRepeat(
         withSequence(
           withTiming(1,    { duration: 600 }),
@@ -72,7 +74,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
       trailOpacity.value = withTiming(0, { duration: 300 });
       trailScale.value   = withTiming(1, { duration: 300 });
     }
-  }, [isRunning]);
+  }, [isRunning, isBusting]);
 
   const heatBoost = 0.55 + (heat / 100) * 0.45;
 
@@ -81,32 +83,52 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
     transform: [{ scaleX: trailScale.value }],
   }));
 
-  // Center the SVG on the rocket nozzle
-  const trailLeft = NOZZLE_CX - TRAIL_W / 2; // 45 - 190 = -145
+  const cx   = TRAIL_W / 2;
+  const topL = cx - NOZZLE_HALF;
+  const topR = cx + NOZZLE_HALF;
+  const trailLeft = NOZZLE_CX - TRAIL_W / 2;
 
-  // Trail top points (narrow at nozzle)
-  const cx   = TRAIL_W / 2;          // 190
-  const topL = cx - NOZZLE_HALF;     // 172
-  const topR = cx + NOZZLE_HALF;     // 208
-
-  // Curved path:
-  // - Left edge: straight from nozzle-left → bottom-left
-  // - Right edge: quadratic bezier sweeping outward to the right
-  //   Control point pushed well outside SVG right boundary for pronounced curve
   const path = [
-    `M ${topL} 0`,                                                        // nozzle top-left
-    `L 0 ${TRAIL_H}`,                                                     // straight left edge → bottom-left
-    `L ${TRAIL_W} ${TRAIL_H}`,                                            // bottom-right
-    `Q ${TRAIL_W + TRAIL_W * 0.28} ${TRAIL_H * 0.38} ${topR} 0`,        // curved right edge back up
+    `M ${topL} 0`,
+    `L 0 ${TRAIL_H}`,
+    `L ${TRAIL_W} ${TRAIL_H}`,
+    `Q ${TRAIL_W + TRAIL_W * 0.28} ${TRAIL_H * 0.38} ${topR} 0`,
     'Z',
   ].join(' ');
 
+  // Lottie blast position — same as rocket center
+  const blastTop  = height * 0.35 - ROCKET_H / 2 - 40;
+  const blastLeft = width  * 0.55 - ROCKET_W / 2 - 55;
+
   return (
     <View style={[styles.container, { width, height }]} pointerEvents="none">
-      {rocketUri && (
+
+      {/* Lottie blast — shown when heat >= 100, replaces rocket */}
+      {isBusting && (
+        <div
+          style={{
+            position: 'absolute',
+            top: blastTop,
+            left: blastLeft,
+            width: 200,
+            height: 200,
+            zIndex: 20,
+          } as React.CSSProperties}
+        >
+          <Lottie
+            animationData={SpaceshipBlast}
+            loop={false}
+            autoplay={true}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </div>
+      )}
+
+      {/* Rocket + trail — hidden when busting */}
+      {rocketUri && !isBusting && (
         <Animated.View style={[styles.rocket, rocketStyle]}>
 
-          {/* Curved SVG trail — behind rocket */}
+          {/* Curved SVG trail */}
           <Animated.View
             style={[
               {
@@ -134,7 +156,6 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
                 </linearGradient>
               </defs>
               <path d={path} fill="url(#trailGrad)" />
-              {/* Nozzle glow — softly bridges rocket exhaust into trail */}
               <ellipse
                 cx={cx}
                 cy={4}
@@ -145,7 +166,7 @@ export function RocketScene({ heat, elapsed, width: rawWidth, height, isRunning 
             </svg>
           </Animated.View>
 
-          {/* Rocket PNG — above trail */}
+          {/* Rocket PNG */}
           <img
             src={rocketUri}
             alt="rocket"
