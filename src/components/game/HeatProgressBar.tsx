@@ -33,7 +33,7 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
         height: 38px;
         background: #1a0f3a;
         border-radius: 999px;
-        overflow: hidden;
+        overflow: visible;
         box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
       }
       .heat-bar-fill {
@@ -72,7 +72,7 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
         font-family: "Alumni Sans", sans-serif;
         font-weight: 900;
         font-style: italic;
-        font-size: 22px;
+        font-size: 13px;
         background: linear-gradient(180deg, #bd8140 0%, #8b5c28 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -90,26 +90,28 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
       {/* Wrapper: relative so BOOM container can overlay right edge */}
       <div style={{ position: 'relative' } as React.CSSProperties}>
         <div className="heat-bar-track">
-          <div
-            className="heat-bar-fill"
-            style={{ width: `${pct}%` }}
-          >
-            {!hideText && (
-              <span className="heat-bar-text">{pct}%</span>
-            )}
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 999, overflow: 'hidden' } as React.CSSProperties}>
+            <div
+              className="heat-bar-fill"
+              style={{ width: `${pct}%` }}
+            >
+              {!hideText && (
+                <span className="heat-bar-text">{pct}%</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* BOOM container — always visible, covers last 5% of bar */}
+        {/* BOOM container — overlaps right end of bar, covers last 5% */}
         {boomUri && (
           <div
             style={{
               position: 'absolute',
               top: '50%',
-              right: -8,
+              right: -12,
               transform: 'translateY(-50%)',
-              width: 72,
-              height: 52,
+              width: 58,
+              height: 44,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -123,11 +125,11 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
                 top: 0, left: 0,
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain',
+                objectFit: 'fill',
                 pointerEvents: 'none',
               } as React.CSSProperties}
             />
-            <span className="boom-text" style={{ position: 'relative', zIndex: 1 } as React.CSSProperties}>
+            <span className="boom-text" style={{ position: 'relative', zIndex: 1, marginTop: 4 } as React.CSSProperties}>
               BOOM!
             </span>
           </div>
