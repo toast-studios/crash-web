@@ -1,19 +1,27 @@
-// === Heat Progress Bar (Web — prominent pill with diagonal stripes) ===
-import React, { useEffect, useRef } from 'react';
+// === Heat Progress Bar (Web — prominent pill with diagonal stripes + BOOM cover) ===
+import React, { useEffect } from 'react';
 import { View, useWindowDimensions } from 'react-native';
+import { Asset } from 'expo-asset';
+import { useState } from 'react';
 
 interface HeatProgressBarProps {
   heat: number; // 0–100
 }
 
 const STYLE_ID = 'heat-bar-style';
+const boomModule = require('../../../assets/figma/boomContainer.png');
 
 export function HeatProgressBar({ heat }: HeatProgressBarProps) {
   const { width: W } = useWindowDimensions();
-  const fillRef = useRef<HTMLDivElement | null>(null);
   const pct = Math.round(Math.min(100, Math.max(0, heat)));
+  const hideText = pct >= 95;
+  const [boomUri, setBoomUri] = useState<string | null>(null);
 
-  // Inject keyframes + styles once
+  useEffect(() => {
+    Asset.fromModule(boomModule).downloadAsync().then(a => setBoomUri(a.uri));
+  }, []);
+
+  // Inject styles once
   useEffect(() => {
     if (document.getElementById(STYLE_ID)) return;
     const el = document.createElement('style');
@@ -60,20 +68,70 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
         line-height: 1;
         letter-spacing: -0.5px;
       }
+      .boom-text {
+        font-family: "Alumni Sans", sans-serif;
+        font-weight: 900;
+        font-style: italic;
+        font-size: 22px;
+        background: linear-gradient(180deg, #bd8140 0%, #8b5c28 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+        white-space: nowrap;
+        letter-spacing: 0.5px;
+      }
     `;
     document.head.appendChild(el);
   }, []);
 
   return (
     <View style={{ paddingHorizontal: 40, width: '100%' }}>
-      <div className="heat-bar-track">
-        <div
-          ref={fillRef}
-          className="heat-bar-fill"
-          style={{ width: `${pct}%` }}
-        >
-          <span className="heat-bar-text">{pct}%</span>
+      {/* Wrapper: relative so BOOM container can overlay right edge */}
+      <div style={{ position: 'relative' } as React.CSSProperties}>
+        <div className="heat-bar-track">
+          <div
+            className="heat-bar-fill"
+            style={{ width: `${pct}%` }}
+          >
+            {!hideText && (
+              <span className="heat-bar-text">{pct}%</span>
+            )}
+          </div>
         </div>
+
+        {/* BOOM container — always visible, covers last 5% of bar */}
+        {boomUri && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              right: -8,
+              transform: 'translateY(-50%)',
+              width: 72,
+              height: 52,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            } as React.CSSProperties}
+          >
+            <img
+              src={boomUri}
+              alt=""
+              style={{
+                position: 'absolute',
+                top: 0, left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                pointerEvents: 'none',
+              } as React.CSSProperties}
+            />
+            <span className="boom-text" style={{ position: 'relative', zIndex: 1 } as React.CSSProperties}>
+              BOOM!
+            </span>
+          </div>
+        )}
       </div>
     </View>
   );
