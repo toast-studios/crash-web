@@ -115,6 +115,7 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              filter: 'drop-shadow(0px 0px 6px rgba(255,255,255,0.7)) drop-shadow(0px 0px 14px rgba(255,220,100,0.5))',
             } as React.CSSProperties}
           >
             <img
