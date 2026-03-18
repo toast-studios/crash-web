@@ -22,11 +22,14 @@ import { useScreenShake } from '../animations/hooks/useScreenShake';
 import { playSound, startBGM, stopBGM } from '../sounds/SoundManager';
 import { ScrollingBackground } from '../components/game/ScrollingBackground';
 import { Image } from 'react-native';
+import { Asset } from 'expo-asset';
 import { COLORS } from '../constants';
 
 const crashWarsLogo = require('../../assets/figma/crash-wars-logo.png');
 const dashboardImg = require('../../assets/figma/dashboard.png');
 const aliveDippedImg = require('../../assets/figma/alivedipped.png');
+const heatSmallImg = require('../../assets/figma/heatsmall.png');
+const snowflakeImg = require('../../assets/figma/snowflake.png');
 const CLOSE_BTN_URL = 'https://www.figma.com/api/mcp/asset/c5a10420-5daa-4f66-bee8-f13d4cf47dff';
 
 export function GameScreen() {
@@ -55,6 +58,40 @@ export function GameScreen() {
   };
 
   const [optimisticExited, setOptimisticExited] = useState(false);
+
+  // Floating icons above heat bar
+  const [floatIcons, setFloatIcons] = useState<{ id: number; type: 'heat' | 'cool' }[]>([]);
+  const [heatSmallUri, setHeatSmallUri] = useState<string | null>(null);
+  const [snowflakeUri, setSnowflakeUri] = useState<string | null>(null);
+  React.useEffect(() => {
+    Asset.fromModule(heatSmallImg).downloadAsync().then(a => setHeatSmallUri(a.uri));
+    Asset.fromModule(snowflakeImg).downloadAsync().then(a => setSnowflakeUri(a.uri));
+  }, []);
+  const addFloatIcon = (type: 'heat' | 'cool') => {
+    const id = Date.now() + Math.random();
+    setFloatIcons(prev => [...prev, { id, type }]);
+    setTimeout(() => setFloatIcons(prev => prev.filter(i => i.id !== id)), 900);
+  };
+
+  // Inject float animation once
+  React.useEffect(() => {
+    const STYLE_ID = 'float-icon-style';
+    if (document.getElementById(STYLE_ID)) return;
+    const el = document.createElement('style');
+    el.id = STYLE_ID;
+    el.textContent = `
+      @keyframes floatUp {
+        0%   { transform: translateY(0px);  opacity: 1; }
+        100% { transform: translateY(-50px); opacity: 0; }
+      }
+      .float-icon {
+        animation: floatUp 0.85s ease-out forwards;
+        position: absolute;
+        pointer-events: none;
+      }
+    `;
+    document.head.appendChild(el);
+  }, []);
   const [optimisticExitTime, setOptimisticExitTime] = useState<number | null>(null);
 
   // Reset optimistic state on new round
@@ -135,6 +172,7 @@ export function GameScreen() {
 
   // Handle COOL — sound + haptic + flash + particles
   const handleCool = useCallback(async () => {
+    addFloatIcon('cool');
     useCool();
     setIceActive(true);
     setTimeout(() => setIceActive(false), 100);
@@ -148,6 +186,7 @@ export function GameScreen() {
 
   // Handle BOOST — sound + haptic + flash + particles
   const handleBoost = useCallback(async () => {
+    addFloatIcon('heat');
     useBoost();
     setFireActive(true);
     setTimeout(() => setFireActive(false), 100);
@@ -238,6 +277,25 @@ export function GameScreen() {
         {/* Bust flash (deep red) */}
         <Animated.View style={[StyleSheet.absoluteFill, bustFlashStyle]} pointerEvents="none" />
 
+        {/* Floating heat/cool icons above heat bar */}
+        {floatIcons.map(icon => (
+          <img
+            key={icon.id}
+            src={icon.type === 'heat' ? heatSmallUri ?? '' : snowflakeUri ?? ''}
+            className="float-icon"
+            style={{
+              position: 'absolute',
+              width: 96,
+              height: 96,
+              left: 12,
+              top: screenHeight * 0.7 - 70,
+              zIndex: 999,
+              pointerEvents: 'none',
+            } as React.CSSProperties}
+            alt=""
+          />
+        ))}
+
         {/* Top section: Logo + Pool + Heat Bar */}
         <View style={styles.topSection}>
           <View style={styles.poolRow}>
@@ -305,6 +363,7 @@ export function GameScreen() {
           <View style={{ position: 'absolute', top: -19, left: 0, right: 0, zIndex: 20 }}>
             <HeatProgressBar heat={heat} />
           </View>
+
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
             <Image
               source={dashboardImg}
