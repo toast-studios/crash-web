@@ -81,11 +81,15 @@ export function GameScreen() {
     el.id = STYLE_ID;
     el.textContent = `
       @keyframes floatUp {
-        0%   { transform: translateY(0px);  opacity: 1; }
-        100% { transform: translateY(-50px); opacity: 0; }
+        0%   { transform: translateY(0px)   translateX(0px);  opacity: 1; }
+        20%  { transform: translateY(-14px) translateX(8px);  opacity: 1; }
+        40%  { transform: translateY(-28px) translateX(14px); opacity: 0.9; }
+        60%  { transform: translateY(-44px) translateX(6px);  opacity: 0.7; }
+        80%  { transform: translateY(-58px) translateX(10px); opacity: 0.35; }
+        100% { transform: translateY(-70px) translateX(14px); opacity: 0; }
       }
       .float-icon {
-        animation: floatUp 0.85s ease-out forwards;
+        animation: floatUp 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         position: absolute;
         pointer-events: none;
       }
