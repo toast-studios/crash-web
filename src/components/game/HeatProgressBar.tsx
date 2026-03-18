@@ -111,7 +111,7 @@ export function HeatProgressBar({ heat }: HeatProgressBarProps) {
               right: -12,
               transform: 'translateY(-50%)',
               width: 58,
-              height: 44,
+              height: 52,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
