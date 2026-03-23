@@ -1,0 +1,28 @@
+    <% if (gameEnvironment === GAME_ENVIRONMENT.PRODUCTION) { %>
+        <script
+            src="https://js.sentry-cdn.com/5a4df858e2d06e9f7783bf0f62cf4040.min.js"
+            crossorigin="anonymous"
+        ></script>
+    <% } %>
+    
+    <script type="module" src="./src/utils/loader.ts" defer></script>
+    <script type="module" src="./src/main.ts" defer></script>
+    <!-- <% if (gameEnvironment !== GAME_ENVIRONMENT.PRODUCTION) { %>
+        <div style="position: absolute; top: 0; left: 0; background-color: #ffff00; color: #000000; padding: 10px; text-align: center;">
+            Current gameMode: <%= gameMode %>
+        </div>
+    <% } %> -->
+    <% if (Object.values(GAME_MODES).includes(gameMode)) { %>
+        <!-- Mode folder name should be one of: <%= Object.values(GAME_MODES).join(', ') %> -->
+        <% try { %>
+            <%- include("./" + gameMode + "/index") %>
+        <% } catch (e) { %>
+            <div style="background-color: #ff0000; color: #ffffff; padding: 20px; text-align: center; font-family: 'Roboto', sans-serif; font-size: 18px;">
+                Error: Mode folder or index file not found for <%= gameMode %>. Please check your configuration.
+            </div>
+        <% } %>
+    <% } else { %>
+        <div style="background-color: #ff0000; color: #ffffff; padding: 20px; text-align: center; font-family: 'Roboto', sans-serif; font-size: 18px;">
+            Error: Invalid game mode. Please check your configuration.
+        </div>
+    <% } %>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<!-- Add Google Fonts -->
+	
+    <title>Crash | Toast Studios </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap&family=Pridi:wght@400;500;600;700;800;900&display=swap&family=Alumni+Sans:ital,wght@0,100..900;1,100..900&display=swap"
+		rel="stylesheet" />
+
+	<link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+	<!-- HTML Loader -->
+	<div id="html-loader">
+		<div class="loader-logo"></div>
+		<div class="loader-progress-container">
+			<div class="loader-progress">
+				<div class="loader-progress-fill" id="progress-fill"></div>
+			</div>
+		</div>
+		<div class="loader-status" id="loader-status">Initializing game...</div>
+	</div>
+
+	<!-- Game Container -->
+	<div id="game-container"></div>
+	
+	<!-- Lottie Containers -->
+	<div id="partner-logo-lottie-container" class="resultScreen-canvas lottie-logo-canvas"></div>
+	<div id="youWin-lottie-container" class="resultScreen-canvas"></div>
+	<div id="bust-lottie-container" class="bust-canvas"></div>
+	<div id="bust-lottie-container-opponent" class="bust-canvas"></div>
+	<div id="youLose-lottie-container" class="resultScreen-canvas"></div>
+	<div id="draw-lottie-container" class="resultScreen-canvas"></div>
+	
+	<%- include('./src/views/index.ejs') %>
+</body>
+
+</html>
