@@ -212,6 +212,9 @@ export const attachEventListeners = () => {
       const isLoser = data.looserId === myPlayerId;
 
       ClientEvent.GameStateChange({ gameState: "ResultScreen" });
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, CRASH_TIMING.ROUND_OVER_RESULT_DELAY_MS);
+      });
 
       // Build GameEndedContext based on lobby format
       if (data.lobbyFormat === LOBBY_FORMAT.DUEL) {

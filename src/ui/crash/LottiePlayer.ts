@@ -1,5 +1,18 @@
 import lottie, { AnimationEventName, type AnimationItem } from "lottie-web";
 
+// Extend Performance interface for non-standard memory property (Chrome/Chromium only)
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+declare global {
+  interface Performance {
+    memory?: MemoryInfo;
+  }
+}
+
 export interface LottiePlayerConfig {
   /** URL path to the initial Lottie JSON file (e.g. "/lotties/SpaceshipFlame.json"). */
   initialPath: string;
@@ -200,7 +213,7 @@ export class LottiePlayer {
 
     this.animation = lottie.loadAnimation({
       container: this.containerEl,
-      renderer: "svg",
+      renderer: "canvas",
       loop,
       autoplay,
       path: fullPath,

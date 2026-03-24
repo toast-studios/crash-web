@@ -7,6 +7,19 @@ import {
   CRASH_LOTTIE_PATHS,
   CRASH_LOTTIE_LAYOUT,
 } from "../constants/crashLayout";
+
+// Extend Performance interface for non-standard memory property (Chrome/Chromium only)
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+declare global {
+  interface Performance {
+    memory?: MemoryInfo;
+  }
+}
 import { socketManager } from "../network/SocketManager";
 import {
   CrashGameSessionState,
@@ -120,12 +133,6 @@ export class CrashGameScreen extends Container {
 
   private readonly handleGameStateSync = (data: GameStateSyncPayload) => {
     if (this.destroyed) return;
-    Logger.info(`[CrashGameScreen] 🔄 gameStateSync:`, {
-      phase: data.phase,
-      heat: data.heat,
-      heatZone: data.heatZone,
-      elapsed: data.elapsed,
-    });
     this.state.applyGameStateSync(data);
     this.syncScrollSpeed();
     this.syncShakeEffect();
@@ -135,14 +142,6 @@ export class CrashGameScreen extends Container {
 
   private readonly handlePlayerAction = (data: CrashPlayerActionPayload) => {
     if (this.destroyed || !this.isReady) return;
-
-    Logger.info(`[CrashGameScreen] 🎮 handlePlayerAction:`, {
-      action: data.action,
-      gameUserId: data.gameUserId,
-      username: data.username,
-      survivalTime: data.survivalTime,
-      isMyPlayer: data.gameUserId === this.state.myPlayerId,
-    });
 
     if (data.action === CrashAction.COOL || data.action === CrashAction.BOOST) {
       const delta = this.state.computeHeatDelta(data.action);
@@ -904,10 +903,6 @@ export class CrashGameScreen extends Container {
       speed =
         (MAX_SPEED * (Math.exp((K * heat) / 100) - 1)) / (Math.exp(K) - 1);
     }
-
-    Logger.info(
-      `[CrashGameScreen] Heat-based scroll: heat=${heat.toFixed(1)}%, speed=${speed.toFixed(2)}`,
-    );
 
     this.background.setScrollSpeed(speed);
   }

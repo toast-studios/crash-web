@@ -39,6 +39,10 @@ const FEED_LAYOUT = {
 interface FeedRow {
   container: Container;
   msgId: string;
+  nameText: Text;
+  actionText: Text;
+  prizeText?: Text;
+  prizeContainer?: Container;
 }
 
 /**
@@ -47,9 +51,14 @@ interface FeedRow {
  * when the server broadcasts state at high frequency (~10 Hz).
  * Only truly new messages get a fade-in animation; existing rows
  * are repositioned smoothly if their order changes.
+ *
+ * MEMORY OPTIMIZATION: Reuses Text objects instead of creating new ones
+ * on every update to prevent memory leaks from 10Hz server updates.
  */
 export class CrashFeed extends Container {
   private rowMap = new Map<string, FeedRow>();
+  private rowPool: FeedRow[] = [];
+  private readonly MAX_POOL_SIZE = 10;
 
   constructor() {
     super();
@@ -95,7 +104,24 @@ export class CrashFeed extends Container {
     row.y = targetY;
     row.alpha = 0;
     this.addChild(row);
-    this.rowMap.set(msg.id, { container: row, msgId: msg.id });
+
+    // Extract Text references for pooling
+    const nameText = row.getChildAt(1) as Text;
+    const actionText = row.getChildAt(2) as Text;
+    const prizeContainer =
+      row.children.length > 3 ? (row.getChildAt(3) as Container) : undefined;
+    const prizeText = prizeContainer
+      ? (prizeContainer.getChildAt(1) as Text)
+      : undefined;
+
+    this.rowMap.set(msg.id, {
+      container: row,
+      msgId: msg.id,
+      nameText,
+      actionText,
+      prizeText,
+      prizeContainer,
+    });
 
     gsap.to(row, { alpha: 1, duration: FEED_LAYOUT.FADE_IN_DURATION });
   }
@@ -113,12 +139,69 @@ export class CrashFeed extends Container {
     for (const [id, row] of this.rowMap) {
       if (keepSet.has(id)) continue;
       gsap.killTweensOf(row.container);
-      row.container.destroy({ children: true });
+
+      // Pool the row for reuse instead of destroying it
+      if (this.rowPool.length < this.MAX_POOL_SIZE) {
+        row.container.removeFromParent();
+        row.container.alpha = 0;
+        row.container.visible = false;
+        this.rowPool.push(row);
+      } else {
+        // Pool is full, destroy this one
+        row.container.destroy({ children: true });
+      }
+
       this.rowMap.delete(id);
     }
   }
 
   private createRow(msg: CrashFeedMessage, players?: CrashPlayer[]): Container {
+    // Try to reuse from pool first (memory optimization)
+    const pooled = this.rowPool.pop();
+
+    if (pooled) {
+      // Reuse existing Text objects, just update their content
+      const truncatedName = this.truncateName(msg.playerName);
+      pooled.nameText.text = truncatedName;
+
+      const actionColor = FEED_COLORS[msg.action] ?? 0xffffff;
+      const actionLabel = FEED_LABELS[msg.action] ?? msg.action.toUpperCase();
+      pooled.actionText.text = actionLabel;
+      pooled.actionText.style.fill = actionColor;
+      pooled.actionText.x =
+        pooled.nameText.x +
+        pooled.nameText.width +
+        FEED_LAYOUT.TEXT_PADDING_RIGHT;
+
+      let rightmostX = pooled.actionText.x + pooled.actionText.width;
+
+      // Handle prize container
+      if (msg.action === "exit") {
+        const prize = this.lookupPrize(msg.playerName, players);
+        if (prize > 0 && pooled.prizeText && pooled.prizeContainer) {
+          pooled.prizeText.text = `$${prize}`;
+          pooled.prizeContainer.visible = true;
+          pooled.prizeContainer.x =
+            pooled.actionText.x +
+            pooled.actionText.width +
+            FEED_LAYOUT.PRIZE_GAP;
+          rightmostX = pooled.prizeContainer.x + pooled.prizeContainer.width;
+        }
+      } else if (pooled.prizeContainer) {
+        pooled.prizeContainer.visible = false;
+      }
+
+      // Update background width
+      const bg = pooled.container.getChildAt(0) as Sprite;
+      const totalWidth = rightmostX + FEED_LAYOUT.TEXT_PADDING_RIGHT;
+      bg.width = totalWidth;
+
+      pooled.container.visible = true;
+      pooled.msgId = msg.id;
+      return pooled.container;
+    }
+
+    // No pooled row available, create new one
     const row = new Container();
 
     const truncatedName = this.truncateName(msg.playerName);
@@ -153,7 +236,8 @@ export class CrashFeed extends Container {
 
     let rightmostX = actionText.x + actionText.width;
 
-    let prizeContainer: Container | null = null;
+    let prizeContainer: Container | undefined;
+    let prizeText: Text | undefined;
     if (msg.action === "exit") {
       const prize = this.lookupPrize(msg.playerName, players);
       if (prize > 0) {
@@ -163,7 +247,7 @@ export class CrashFeed extends Container {
         prizeSprite.anchor.set(0, 0.5);
         prizeSprite.scale.set(0.5);
 
-        const prizeText = new Text({
+        prizeText = new Text({
           text: `$${prize}`,
           style: {
             fontFamily: FONTS.PRIMARY,
@@ -218,5 +302,11 @@ export class CrashFeed extends Container {
       row.container.destroy({ children: true });
     }
     this.rowMap.clear();
+
+    // Clear pool
+    for (const pooledRow of this.rowPool) {
+      pooledRow.container.destroy({ children: true });
+    }
+    this.rowPool = [];
   }
 }
