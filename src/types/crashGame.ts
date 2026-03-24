@@ -179,6 +179,7 @@ export class CrashGameSessionState {
   heat = 0;
   heatZone: HeatZone = "green";
   velocity = 0;
+  shipSpeed = 0;
   countdown = 3;
 
   players: CrashPlayer[] = [];
@@ -223,6 +224,7 @@ export class CrashGameSessionState {
     this.phase = "lobby";
     this.heat = 0;
     this.velocity = 0;
+    this.shipSpeed = 0;
   }
 
   applyGameStart(payload: GameStartPayload): void {
@@ -233,6 +235,7 @@ export class CrashGameSessionState {
     this.boostMaxUses = payload.boostMaxUses;
     this.coolUsesLeft = payload.coolMaxUses;
     this.boostUsesLeft = payload.boostMaxUses;
+    this.shipSpeed = 0;
   }
 
   applyGameStateSync(payload: GameStateSyncPayload): void {
@@ -241,6 +244,7 @@ export class CrashGameSessionState {
     this.heat = payload.heat;
     this.heatZone = payload.heatZone;
     this.velocity = payload.velocity;
+    this.shipSpeed = Number.isFinite(payload.shipSpeed) ? payload.shipSpeed : 0;
 
     this.players = payload.players.map((p) => ({
       id: p.id,
@@ -350,6 +354,7 @@ export class CrashGameSessionState {
     this.heat = 0;
     this.heatZone = "green";
     this.velocity = 0;
+    this.shipSpeed = 0;
     this.countdown = 3;
     this.players = [];
     this.feedMessages = [];

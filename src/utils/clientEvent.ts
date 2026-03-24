@@ -25,6 +25,7 @@ export enum CLIENT_EVENT {
   LOBBY_CLOSE = "LOBBY_CLOSE",
   WAITING_FOR_OPPONENT = "WAITING_FOR_OPPONENT",
   REJOIN_MATCH = "REJOIN_MATCH",
+  HAPTIC_FEEDBACK = "HAPTIC_FEEDBACK",
 }
 
 export type RegisterSuccessData = {
@@ -115,6 +116,21 @@ export type RejoinMatchData = {
   opponents: Opponents;
 };
 
+export type HapticFeedbackType =
+  | "impactLight"
+  | "impactMedium"
+  | "impactHeavy"
+  | "rigid"
+  | "soft"
+  | "notificationSuccess"
+  | "notificationWarning"
+  | "notificationError"
+  | "selection";
+
+export type HapticFeedbackData = {
+  hapticType: HapticFeedbackType;
+};
+
 export type EVENT_DATA = {
   [CLIENT_EVENT.GAME_LOADED]: NonNullable<unknown>;
   [CLIENT_EVENT.AUTH_SUCCESS]: NonNullable<unknown>;
@@ -136,6 +152,7 @@ export type EVENT_DATA = {
   [CLIENT_EVENT.LOBBY_CLOSE]: NonNullable<unknown>;
   [CLIENT_EVENT.WAITING_FOR_OPPONENT]: WaitingForOpponentData;
   [CLIENT_EVENT.REJOIN_MATCH]: RejoinMatchData;
+  [CLIENT_EVENT.HAPTIC_FEEDBACK]: HapticFeedbackData;
 };
 
 type ClientEventData<T extends CLIENT_EVENT> = EVENT_DATA[T];
@@ -245,6 +262,10 @@ export abstract class ClientEvent {
   }
   static RejoinMatch(data: RejoinMatchData) {
     sendClientEvent(CLIENT_EVENT.REJOIN_MATCH, data);
+  }
+
+  static HapticFeedback(hapticType: HapticFeedbackType) {
+    sendClientEvent(CLIENT_EVENT.HAPTIC_FEEDBACK, { hapticType });
   }
 }
 

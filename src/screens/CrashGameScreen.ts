@@ -42,6 +42,7 @@ import { CrashFeed } from "../ui/crash/CrashFeed";
 import { PlayerCountHeader } from "../ui/crash/PlayerCountHeader";
 import { HeatDeltaText } from "../ui/crash/HeatDeltaText";
 import { ActionBubbleEffect } from "../ui/crash/ActionBubbleEffect";
+import { ShipSpeedLabel } from "../ui/crash/ShipSpeedLabel";
 import { app } from "../app";
 import { navigation } from "../utils/navigation";
 import { getCurrentGameUserId } from "../network/eventListeners";
@@ -69,6 +70,9 @@ const CRITICAL_SHAKE = {
   BG_CYCLE_MS: 40,
   SETTLE_DURATION: 0.1,
 } as const;
+
+const MOCK_SHIP_SPEED_KMH = 742;
+const SHIP_SPEED_LABEL_Y_OFFSET = -30;
 
 enum CrashAction {
   COOL = "cool",
@@ -123,6 +127,7 @@ export class CrashGameScreen extends Container {
   private heatDeltaText: HeatDeltaText;
   private bubbleEffect: ActionBubbleEffect;
   public spaceshipLottie: LottiePlayer;
+  private shipSpeedLabel: ShipSpeedLabel;
 
   private logoShakeTl: gsap.core.Timeline | null = null;
   private bgShakeTl: gsap.core.Timeline | null = null;
@@ -278,6 +283,11 @@ export class CrashGameScreen extends Container {
       zIndex: CRASH_LOTTIE_LAYOUT.Z_INDEX,
     });
 
+    this.shipSpeedLabel = new ShipSpeedLabel({
+      rightGapPx: -60,
+    });
+    this.addChild(this.shipSpeedLabel);
+
     this.startSocketEventListeners();
   }
 
@@ -287,12 +297,16 @@ export class CrashGameScreen extends Container {
     );
     this.isReady = true;
     this.spaceshipLottie.setVisible(true);
+    this.shipSpeedLabel.visible = true;
     this.spaceshipLottie.play();
 
     if (this.animateShow) {
+      this.shipSpeedLabel.alpha = 0;
       this.animateSpaceshipToTrail();
     } else {
       this.repositionSpaceshipLottie();
+      this.repositionShipSpeedLabelFinal();
+      this.shipSpeedLabel.alpha = 1;
       this.setSpaceshipRotationInstant();
       this.trail.alpha = 1;
       this.syncScrollSpeed();
@@ -307,11 +321,13 @@ export class CrashGameScreen extends Container {
     this.isReady = false;
     this.isAnimatingToTrail = false;
     this.spaceshipLottie.setVisible(false);
+    this.shipSpeedLabel.visible = false;
     this.spaceshipLottie.stop();
     const lottieContainer = this.spaceshipLottie.getContainerElement();
     if (lottieContainer) {
       gsap.killTweensOf(lottieContainer);
     }
+    gsap.killTweensOf(this.shipSpeedLabel);
     this.removeWebviewListeners();
     this.stopSocketEventListeners();
     this.stopShakeEffect();
@@ -360,6 +376,7 @@ export class CrashGameScreen extends Container {
         `[CrashGameScreen] 📐 Resize - repositioning lottie (not animating)`,
       );
       this.repositionSpaceshipLottie();
+      this.repositionShipSpeedLabelFinal();
     } else {
       Logger.info(
         `[CrashGameScreen] 📐 Resize - skipping lottie reposition (animation in progress)`,
@@ -436,6 +453,7 @@ export class CrashGameScreen extends Container {
   public sendCool(): void {
     if (!this.state.isMyPlayerAlive() || this.state.coolUsesLeft <= 0) return;
 
+    // ClientEvent.HapticFeedback("impactMedium");
     this.state.coolUsesLeft--;
     this.updateDisplay();
 
@@ -461,6 +479,7 @@ export class CrashGameScreen extends Container {
   public sendBoost(): void {
     if (!this.state.isMyPlayerAlive() || this.state.boostUsesLeft <= 0) return;
 
+    // ClientEvent.HapticFeedback("impactMedium");
     this.state.boostUsesLeft--;
     this.updateDisplay();
 
@@ -486,6 +505,7 @@ export class CrashGameScreen extends Container {
   public sendExit(): void {
     if (!this.state.isMyPlayerAlive() || this.optimisticExited) return;
 
+    // ClientEvent.HapticFeedback("notificationSuccess");
     Logger.info(`[CrashGameScreen] 🚪 Sending exit_ship action to server`);
     this.optimisticExited = true;
     this.coolButton.setEnabled(false);
@@ -525,6 +545,8 @@ export class CrashGameScreen extends Container {
 
   private handleCrossPress(): void {
     if (this.destroyed) return;
+
+    // ClientEvent.HapticFeedback("selection");
 
     if (isMetaFreeWin()) {
       ClientEvent.ShowQuitPopupModal();
@@ -639,6 +661,7 @@ export class CrashGameScreen extends Container {
     });
 
     this.spaceshipLottie.reposition(startX, startY, lottieW, lottieH);
+    this.repositionShipSpeedLabelFinal();
 
     const lottieContainer = this.spaceshipLottie.getContainerElement();
     if (!lottieContainer) return;
@@ -676,6 +699,13 @@ export class CrashGameScreen extends Container {
             ease: "power2.out",
           });
         }
+
+        this.repositionShipSpeedLabelFinal();
+        gsap.to(this.shipSpeedLabel, {
+          alpha: 1,
+          duration: 0.35,
+          ease: "power2.out",
+        });
       },
     });
   }
@@ -695,6 +725,33 @@ export class CrashGameScreen extends Container {
       CRASH_LOTTIE_LAYOUT.WIDTH,
       CRASH_LOTTIE_LAYOUT.HEIGHT,
     );
+  }
+
+  private repositionShipSpeedLabelFinal(): void {
+    // Convert lottie's CSS position back to PixiJS coordinates
+    const canvas = app.renderer.canvas as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const pixiWidth = app.renderer.width;
+    const pixiHeight = app.renderer.height;
+
+    const scaleX = rect.width / pixiWidth;
+    const scaleY = rect.height / pixiHeight;
+
+    // Get the lottie's final CSS position
+    const { x: lottieCssX, y: lottieCssY } = this.computeLottieFinalPosition();
+
+    // Convert CSS coordinates back to PixiJS coordinates
+    const lottiePixiX = (lottieCssX - rect.left) / scaleX;
+    const lottiePixiY = (lottieCssY - rect.top) / scaleY;
+
+    // Position speed label to the right of the lottie container
+    this.shipSpeedLabel.repositionToLottieBox(
+      lottiePixiX,
+      lottiePixiY,
+      CRASH_LOTTIE_LAYOUT.WIDTH / scaleX, // Convert CSS width to PixiJS
+      CRASH_LOTTIE_LAYOUT.HEIGHT / scaleY, // Convert CSS height to PixiJS
+    );
+    this.shipSpeedLabel.y += SHIP_SPEED_LABEL_Y_OFFSET;
   }
 
   /** Instantly sets the spaceship lottie rotation without animation (used on reconnection). */
@@ -857,6 +914,7 @@ export class CrashGameScreen extends Container {
     if (this.state.phase === "roundOver") {
       Logger.info(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
       this.hasTriggeredBlast = true;
+      // ClientEvent.HapticFeedback("impactHeavy");
       this.spaceshipLottie.loadAnimation(
         CRASH_LOTTIE_PATHS.SPACESHIP_BLAST,
         false,
@@ -927,11 +985,19 @@ export class CrashGameScreen extends Container {
     this.heatButton.setUsesRemaining(this.state.boostUsesLeft);
     this.playerCountHeader.setCount(this.state.players.length);
     this.feed.updateMessages(this.state.feedMessages, this.state.players);
+    this.shipSpeedLabel.setSpeed(this.getShipSpeedForDisplay());
 
     const isAlive = this.state.isMyPlayerAlive() && !this.optimisticExited;
     const baseEnabled = isAlive && this.state.phase === "running";
     this.coolButton.setEnabled(baseEnabled && this.state.coolUsesLeft > 0);
     this.cashoutButton.setEnabled(baseEnabled);
     this.heatButton.setEnabled(baseEnabled && this.state.boostUsesLeft > 0);
+  }
+
+  private getShipSpeedForDisplay(): number {
+    if (this.state.shipSpeed > 0) {
+      return this.state.shipSpeed;
+    }
+    return this.state.phase === "running" ? MOCK_SHIP_SPEED_KMH : 0;
   }
 }
