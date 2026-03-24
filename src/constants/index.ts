@@ -85,7 +85,6 @@ export const CRASH_EVENTS = {
   GAME_TABLE_INFO: "gameTableInfo",
   MATCH_FOUND: "matchFound",
   MATCH_NOT_FOUND: "matchNotFound",
-  COUNTDOWN: "countdown",
   GAME_START: "gameStart",
   GAME_STATE_SYNC: "gameStateSync",
   PLAYER_ACTION: "playerAction",
@@ -95,7 +94,6 @@ export const CRASH_EVENTS = {
 } as const;
 
 export const CRASH_ACTIONS = {
-  JOIN_CRASH_GAME: "joinCrashGame",
   CRASH_ACTION: "crashAction",
 } as const;
 

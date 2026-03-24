@@ -7,7 +7,6 @@ import {
 } from "pixi.js";
 import gsap from "gsap";
 import { SpaceBackground } from "../ui/SpaceBackground";
-import type { CrashPlayerStatus } from "../types/crashGame";
 import { navigation } from "../utils/navigation";
 import { FONTS, FONT_WEIGHTS } from "../constants/typography";
 import { Logger } from "../utils/logger";
@@ -47,18 +46,15 @@ const RESULT_LAYOUT = {
 
 export interface CrashResultPlayer {
   id: string;
-  name: string;
-  status: CrashPlayerStatus;
+  username: string;
+  profilePicture: string;
   survivalTime: number;
-  boostCount: number;
-  coolCount: number;
   prize: number;
   rank: number;
 }
 
 export interface CrashResultScreenConfig {
   matchId: string;
-  elapsed?: number;
   yourRank: number;
   yourPrize: number;
   yourSurvivalTime: number;
@@ -130,14 +126,7 @@ export class CrashResultScreen extends Container {
     this.titleText = this.txt(titleText, 28, titleColor, FONT_WEIGHTS.BOLD, 3);
     this.addChild(this.titleText);
 
-    const elapsedTime = config.elapsed ?? 0;
-    this.subtitleText = this.txt(
-      elapsedTime > 0
-        ? `Heat reached 100% at ${elapsedTime.toFixed(2)}s`
-        : "Round Complete",
-      12,
-      RESULT_COLORS.TEXT_DIM,
-    );
+    this.subtitleText = this.txt("Round Complete", 12, RESULT_COLORS.TEXT_DIM);
     this.addChild(this.subtitleText);
 
     this.bannerContainer = this.buildProfitBanner();
@@ -336,7 +325,6 @@ export class CrashResultScreen extends Container {
     const bg = new Graphics();
     container.addChild(bg);
 
-    const isBust = player.status === "bust";
     const rankFill =
       player.rank <= 3 ? RANK_FILL[player.rank - 1] : RESULT_COLORS.TEXT_MUTED;
 
@@ -349,25 +337,17 @@ export class CrashResultScreen extends Container {
     container.addChild(rankText);
 
     const nameText = this.txt(
-      player.name,
+      player.username,
       14,
-      isBust
-        ? RESULT_COLORS.TEXT_MUTED
-        : isHuman
-          ? RESULT_COLORS.ACCENT
-          : RESULT_COLORS.TEXT,
+      isHuman ? RESULT_COLORS.ACCENT : RESULT_COLORS.TEXT,
       isHuman ? FONT_WEIGHTS.BOLD : FONT_WEIGHTS.SEMIBOLD,
     );
     container.addChild(nameText);
 
-    const scoreLabel =
-      player.status === "bust" ? "BUST" : `${player.survivalTime.toFixed(2)}s`;
-    const boostSuffix =
-      player.boostCount > 0 ? ` (+${player.boostCount} boost)` : "";
     const scoreText = this.txt(
-      scoreLabel + boostSuffix,
+      `${player.survivalTime.toFixed(2)}s`,
       12,
-      isBust ? RESULT_COLORS.TEXT_MUTED : RESULT_COLORS.TEXT_DIM,
+      RESULT_COLORS.TEXT_DIM,
     );
     container.addChild(scoreText);
 
@@ -378,8 +358,6 @@ export class CrashResultScreen extends Container {
       FONT_WEIGHTS.BOLD,
     );
     container.addChild(prizeText);
-
-    if (isBust) container.alpha = 0.6;
 
     return { container, bg, rankText, nameText, scoreText, prizeText };
   }

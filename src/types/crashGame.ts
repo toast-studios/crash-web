@@ -1,6 +1,8 @@
 // === HeatWave PvP — Crash Game Types ===
 // Derived from crash-web/shared/types.ts and the Toast server payload contracts.
 
+import { LOBBY_FORMAT } from ".";
+
 // --- Domain Primitives ---
 
 export type CrashPlayerStatus = "alive" | "exited" | "bust";
@@ -50,12 +52,14 @@ export interface CrashGameConfig {
 
 export interface GameTableInfoPayload {
   matchId: string;
+  isReconnection: boolean;
   gameConfig: CrashGameConfig;
   players: Array<{
     gameUserId: string;
     username: string;
     status: string;
   }>;
+  gameStateSync?: GameStateSyncPayload;
 }
 
 export interface CrashMatchFoundPayload {
@@ -66,10 +70,6 @@ export interface CrashMatchFoundPayload {
     gameUserId: string;
     username: string;
   }>;
-}
-
-export interface CountdownPayload {
-  secondsRemaining: number;
 }
 
 export interface GameStartPayload {
@@ -133,17 +133,23 @@ export interface RoundOverPayload {
 
 export interface CrashGameResultPayload {
   matchId: string;
-  elapsed: number;
+  lobbyFormat: LOBBY_FORMAT;
+  winnerId: string;
+  looserId: string;
+  winnerPoints: number;
+  looserPoints: number;
+  gameEndType: "GAME_OVER" | "DRAW";
   yourRank: number;
   yourPrize: number;
   yourSurvivalTime: number;
+  yourUsername: string;
+  yourProfilePicture: string;
+  currencyCode: string;
   players: Array<{
     id: string;
-    name: string;
-    status: CrashPlayerStatus;
+    username: string;
+    profilePicture: string;
     survivalTime: number;
-    boostCount: number;
-    coolCount: number;
     prize: number;
     rank: number;
   }>;
@@ -154,22 +160,6 @@ export interface CrashErrorPayload {
 }
 
 // --- Client → Server Payloads ---
-
-export interface JoinCrashGamePayload {
-  matchId: string;
-  totalPlayers: number;
-  countdownSeconds: number;
-  lobbyFormat: string;
-  playerDetails: {
-    gameUserId: string;
-    registrationId: string;
-    partnerId: string;
-    partnerUserId: string;
-    username: string;
-    profilePicture: string;
-    lobbyDetails: Record<string, unknown>;
-  };
-}
 
 export interface CrashActionPayload {
   action: "cool" | "boost" | "exit_ship";
@@ -221,6 +211,17 @@ export class CrashGameSessionState {
       this.coolUsesLeft = init.gameConfig.coolMaxUses;
       this.boostUsesLeft = init.gameConfig.boostMaxUses;
     }
+  }
+
+  applyGameTableInfo(payload: GameTableInfoPayload): void {
+    this.gameConfig = payload.gameConfig;
+    this.coolMaxUses = payload.gameConfig.coolMaxUses;
+    this.boostMaxUses = payload.gameConfig.boostMaxUses;
+    this.coolUsesLeft = payload.gameConfig.coolMaxUses;
+    this.boostUsesLeft = payload.gameConfig.boostMaxUses;
+    this.phase = "lobby";
+    this.heat = 0;
+    this.velocity = 0;
   }
 
   applyGameStart(payload: GameStartPayload): void {

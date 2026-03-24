@@ -1,0 +1,206 @@
+---
+description: Code smell detection and prevention rules
+alwaysApply: true
+---
+
+# Code Smell Prevention
+
+Rules to eliminate recurring code smells found in this project. Every new or modified file must comply.
+
+---
+
+## No Magic Numbers or Hardcoded Values
+
+Every literal number that represents a domain concept must be a named constant.
+
+### Timing Delays
+
+```ts
+// BAD
+setTimeout(() => startTurn(), 3000);
+this.nextTurnStartDelay = 1500;
+const leaderboardDelay = lastColumnResultHadDealerBust ? 5000 : 3000;
+
+// GOOD
+const TIMING = {
+  TURN_START_DELAY: 3000,
+  RECONNECT_TURN_START_DELAY: 1000,
+  LEADERBOARD_DELAY_DEFAULT: 3000,
+  LEADERBOARD_DELAY_DEALER_BUST: 5000,
+  NEXT_TURN_START_DELAY: 1500,
+} as const;
+
+setTimeout(() => startTurn(), TIMING.TURN_START_DELAY);
+```
+
+All timing constants belong in `constants/timing.ts`.
+
+### Colors and Theming
+
+```ts
+// BAD — colors scattered across 30+ files
+houseGradient.addColorStop(0, 0xe8e8e8);
+fill: "#00FF00";
+textColor: 0xffffff;
+
+// GOOD — centralized in constants/theme.ts
+export const COLORS = {
+  WHITE: 0xffffff,
+  BLACK: 0x000000,
+  BACKGROUND_DARK: 0x151515,
+  SUCCESS_GREEN: 0x00ff00,
+  ERROR_RED: 0xff0000,
+  GRADIENT_LIGHT: 0xe8e8e8,
+  GRADIENT_MID: 0xffffff,
+  GRADIENT_DARK: 0xc0c0c0,
+} as const;
+```
+
+All color values belong in `constants/theme.ts`. Use hex number format (`0xRRGGBB`) consistently — never mix with string format (`"#RRGGBB"`).
+
+### Pixel Positions and Sizes
+
+UI layout magic numbers must be named constants, ideally in the component's file or in `constants/layout.ts`:
+
+```ts
+// BAD
+{ x: -this.circleSize / 2 - 3, y: 0 }
+maxWidth: 400,
+fontSize: 24,
+
+// GOOD
+const TOOLTIP_CONFIG = { maxWidth: 400, textColor: COLORS.WHITE, fontSize: 24 } as const;
+const CIRCLE_OFFSET = 3;
+```
+
+### Hardcoded URLs
+
+URLs must come from environment config or `network/constants.ts`, never inlined:
+
+```ts
+// BAD
+"https://d36pvm6vh2iaub.cloudfront.net/avatars/1.png"
+
+// GOOD
+const DEFAULT_AVATAR_URL = PARTNER_SPECIFIC_CONFIG[CURRENT_PARTNER].defaultAvatarUrl;
+```
+
+---
+
+## No Code Duplication (DRY)
+
+If the same logic exists in more than one place, extract it immediately.
+
+### Rules
+- A function or block of logic must exist in **exactly one place**. If two files need it, extract to a shared utility.
+- When two classes share >30% of their code, extract a shared base class or composition helper.
+- Never copy-paste a class to create a mode variant (Duel vs Tournament). Use inheritance or generics.
+
+### Known Duplications to Eliminate
+
+| Duplicated Logic | Current Locations | Extract To |
+|---|---|---|
+| `convertColumnResult()` | `eventListeners.ts`, `TournamentGameScreen.ts` | `utils/columnResult.ts` |
+| `shouldShowFTUEPointers()` | `GameScreen.ts`, `TournamentGameScreen.ts`, `PhaseTwo.ts`, `TournamentPhaseTwo.ts` | `utils/ftue.ts` |
+| `dispatchProgress()` | `main.ts`, `app.ts` | `utils/progress.ts` |
+| GameScreen class body | `GameScreen.ts`, `TournamentGameScreen.ts` | `BaseGameScreen.ts` abstract class |
+| PhaseOne class body | `PhaseOne.ts`, `TournamentPhaseOne.ts` | `BasePhaseOne.ts` abstract class |
+| PhaseTwo class body | `PhaseTwo.ts`, `TournamentPhaseTwo.ts` | `BasePhaseTwo.ts` abstract class |
+
+---
+
+## No God Methods
+
+Methods must be small, focused, and easy to understand at a glance.
+
+### Rules
+- **Constructors: max ~50 lines.** Delegate complex setup to private `init*` or `setup*` methods or builder classes.
+- **Methods: max ~40 lines.** If a method exceeds this, extract sub-steps into private helpers with descriptive names.
+- **Max 3 levels of nesting.** Use early returns, guard clauses, and extracted helpers to flatten logic.
+
+```ts
+// BAD — 200-line constructor
+constructor(data: StoreData) {
+  super();
+  // ... 200 lines of mixed layout, state, event wiring, timers, FTUE ...
+}
+
+// GOOD — constructor delegates
+constructor(data: StoreData) {
+  super();
+  this.state = this.initState(data);
+  this.initLayout();
+  this.initEventListeners();
+}
+```
+
+---
+
+## No Dead Code
+
+### Rules
+- Remove unused imports, variables, classes, and functions. Do not leave them "for later."
+- Remove all commented-out code blocks. Use version control to recover old code if needed.
+- Remove test stubs and dummy data from production source. Move to a `__tests__/` or `__fixtures__/` directory.
+
+### Known Dead Code
+- `store/StoreManager.ts` and `store/Practice.ts` — `gameStore` appears entirely unused by actual game logic
+- `store/dummyDataForLobbies.ts` — test fixture in production source
+- `ui/test.ts` and `ui/test/` — test harness in production UI directory
+- Commented-out blocks in `SocketManager.ts` (lines 214-224)
+
+---
+
+## No Module-Level Mutable State
+
+Mutable `let` variables at module scope are hidden global state — they survive screen transitions, can't be reset cleanly, and make debugging difficult.
+
+```ts
+// BAD — module-level mutable state in eventListeners.ts
+let currentGameUserId: string | null = null;
+let currentRound: number = 1;
+let lastColumnResultHadDealerBust: boolean = false;
+let roundStartingOverlay: Container | null = null;
+
+// GOOD — encapsulate in a class or pass as parameters
+class EventListenerState {
+  currentGameUserId: string | null = null;
+  currentRound = 1;
+  lastColumnResultHadDealerBust = false;
+
+  reset() {
+    this.currentGameUserId = null;
+    this.currentRound = 1;
+    this.lastColumnResultHadDealerBust = false;
+  }
+}
+```
+
+### Exception
+Module-level `const` bindings for singleton instances (e.g., `export const socketManager = new SocketManager()`) are acceptable at the composition root. But their consumers must receive them via injection, not direct import (see `solid-principles.mdc`).
+
+---
+
+## No Inline SVG / Large String Literals
+
+SVG path data, HTML templates, and other large string literals must live in asset files or dedicated data modules — not inlined in component classes.
+
+```ts
+// BAD — 100 lines of SVG paths inside Card.ts
+const HEART_SVG = `<svg>...100 lines...</svg>`;
+
+// GOOD — load from assets or a dedicated data file
+import { SUIT_PATHS } from "../constants/cardSuits";
+```
+
+---
+
+## Naming Conventions
+
+- **Files**: PascalCase for classes (`GameScreen.ts`), camelCase for utilities (`asyncUtils.ts`).
+- **Classes**: PascalCase, noun-based (`PlayerProfileBar`, `CardDeck`).
+- **Interfaces**: PascalCase with `I` prefix for service contracts (`ISocketManager`, `INavigator`). Type aliases for data shapes use no prefix (`StoreData`, `TurnInfo`).
+- **Constants**: UPPER_SNAKE_CASE for true constants (`TIMING.TURN_START_DELAY`), camelCase for config objects (`animationConfig`).
+- **Methods**: camelCase, verb-based (`startTimer`, `handleTurnInfo`, `createPlayerBar`).
+- **Boolean variables**: Prefix with `is`, `has`, `should`, `can` (`isReconnection`, `hasDealtCards`, `shouldShowFTUE`).
+- **Fix typos**: Class names like `CIrcularTImeProgressBar` should be `CircularTimeProgressBar`.

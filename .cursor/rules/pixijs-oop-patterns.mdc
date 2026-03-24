@@ -1,0 +1,286 @@
+---
+description: PixiJS OOP best practices for resource lifecycle, events, and composition
+alwaysApply: true
+---
+
+# PixiJS OOP Patterns
+
+Rules for writing robust, leak-free PixiJS classes. Based on real memory leaks and lifecycle bugs found in this project.
+
+---
+
+## Resource Lifecycle — The `destroy()` Contract
+
+Every class extending `Container` must implement `destroy()` that cleans up **all** owned resources. PixiJS has no garbage collector for WebGL resources — skipping `destroy()` leaks GPU memory.
+
+### Required Cleanup Checklist
+
+```ts
+class MyScreen extends Container {
+  private timerIds: number[] = [];
+  private boundHandlers = new Map<string, (...args: unknown[]) => void>();
+
+  destroy(options?: DestroyOptions) {
+    // 1. Kill all GSAP tweens targeting this or children
+    gsap.killTweensOf(this);
+    gsap.killTweensOf(this.children);
+
+    // 2. Clear all timers
+    this.timerIds.forEach(id => clearTimeout(id));
+    this.timerIds.forEach(id => clearInterval(id));
+    this.timerIds = [];
+
+    // 3. Remove socket event listeners (with specific callback refs)
+    this.stopSocketEventListeners();
+
+    // 4. Remove DOM event listeners (with stored refs)
+    this.boundHandlers.forEach((handler, event) => {
+      window.removeEventListener(event, handler);
+    });
+    this.boundHandlers.clear();
+
+    // 5. Null out references to large objects
+    this.phaseOne = null;
+    this.phaseTwo = null;
+
+    // 6. Call super.destroy with children cleanup
+    super.destroy({ children: true, ...options });
+  }
+}
+```
+
+### Anti-Pattern — Empty `destroy()` (DO NOT)
+
+```ts
+// BAD: Found in GameScreen.ts — delegates nothing, leaks everything
+destroy(options?: DestroyOptions) {
+  super.destroy(options);
+}
+```
+
+### Rule
+- `destroy()` MUST call `hide()` (or equivalent cleanup) before `super.destroy()`.
+- `destroy()` MUST pass `{ children: true }` to `super.destroy()` to recursively clean up the display tree.
+- Every `setTimeout` / `setInterval` call must store its ID and clear it in `destroy()`.
+- Every `gsap.to()` / `gsap.from()` / `gsap.timeline()` must be killable — either via `gsap.killTweensOf(target)` or by storing the tween and calling `.kill()`.
+
+---
+
+## Event Listener Hygiene
+
+### DOM Event Listeners
+
+**NEVER** use `.bind(this)` or anonymous arrows directly in `addEventListener`. Each call to `.bind()` creates a new function reference, making `removeEventListener` impossible.
+
+```ts
+// BAD — the two .bind(this) calls create different references, listener is never removed
+window.addEventListener("message", this.handleAppMessage.bind(this));
+window.removeEventListener("message", this.handleAppMessage.bind(this)); // Does nothing!
+
+// BAD — anonymous arrow can never be removed
+window.addEventListener("appMessage", (event) => { this.handle(event); });
+```
+
+**ALWAYS** store the bound reference as a class field:
+
+```ts
+// GOOD — same reference used for add and remove
+class MyScreen extends Container {
+  private readonly onMessage = this.handleAppMessage.bind(this);
+  private readonly onAppMessage = this.handleAppMessage.bind(this);
+
+  show() {
+    window.addEventListener("message", this.onMessage);
+    window.addEventListener("appMessage", this.onAppMessage);
+  }
+
+  hide() {
+    window.removeEventListener("message", this.onMessage);
+    window.removeEventListener("appMessage", this.onAppMessage);
+  }
+}
+```
+
+Alternative: use arrow function class fields (auto-bound):
+
+```ts
+class MyScreen extends Container {
+  private handleMessage = (event: MessageEvent) => {
+    // `this` is correctly bound
+  };
+
+  show() { window.addEventListener("message", this.handleMessage); }
+  hide() { window.removeEventListener("message", this.handleMessage); }
+}
+```
+
+### PixiJS Pointer Events
+
+For PixiJS `.on()` / `.off()`, the same rule applies — store the handler reference:
+
+```ts
+// GOOD
+private readonly onPointerDown = this.handlePointerDown.bind(this);
+
+show() { this.on("pointerdown", this.onPointerDown); }
+hide() { this.off("pointerdown", this.onPointerDown); }
+```
+
+### Interactivity Toggling
+
+Prefer `eventMode` over the deprecated `interactive` property. When disabling interactivity temporarily (e.g., during animations), use `eventMode = 'none'` and restore to `'static'` — don't toggle `.interactive` on 20+ individual children.
+
+```ts
+// BAD — toggling interactive on every child individually
+this.hitButton.interactive = false;
+this.standButton.interactive = false;
+this.splitButton.interactive = false;
+// ... 10 more lines
+
+// GOOD — disable the parent container
+this.actionButtonContainer.eventMode = "none";
+// Re-enable later
+this.actionButtonContainer.eventMode = "static";
+```
+
+---
+
+## Socket Event Listener Ownership
+
+### Rules
+
+1. **Each screen owns its listeners.** Register in `startSocketEventListeners()`, unregister in `stopSocketEventListeners()`.
+2. **Always pass the specific callback to `.off()`.** Calling `socketManager.off("turnInfo")` without a callback removes ALL listeners for that event — including global ones registered elsewhere.
+
+```ts
+// BAD — removes ALL turnInfo listeners, including ones from eventListeners.ts
+socketManager.off(CONSTANTS.EVENTS.TURN_INFO);
+
+// GOOD — removes only this screen's listener
+socketManager.off(CONSTANTS.EVENTS.TURN_INFO, this.onTurnInfo);
+```
+
+3. **Never listen to the same event in both global `eventListeners.ts` and a screen.** Choose one owner per event per lifecycle phase. If the global layer needs to pre-process an event before the screen exists, use a buffer pattern with proper handoff — not dual listeners with `delayCall` hacks.
+
+4. **`hide()` must call `stopSocketEventListeners()`.** The screen should not receive events while offscreen.
+
+---
+
+## Screen Lifecycle Contract
+
+All screens (classes shown via `navigation.showScreen()`) must implement this lifecycle:
+
+```ts
+interface ScreenLifecycle {
+  show(): Promise<void>;    // Enter animations, start listeners, begin game loop
+  hide(): Promise<void>;    // Exit animations, stop listeners, kill tweens, clear timers
+  resize(w: number, h: number): void;  // Responsive layout
+  destroy(options?: DestroyOptions): void;  // Full cleanup, call hide() first
+}
+```
+
+### Lifecycle Flow
+
+```
+construct → show() → [active: events, animations, timers] → hide() → destroy()
+```
+
+- `show()` starts listeners and animations
+- `hide()` stops everything (tweens, timers, listeners) — the screen must be inert after `hide()`
+- `destroy()` calls `hide()` if not already called, then releases all resources and calls `super.destroy({ children: true })`
+
+### Rule
+Never rely on `destroy()` being called after `hide()`. `destroy()` must be self-sufficient — always call `hide()` internally as a safety measure:
+
+```ts
+destroy(options?: DestroyOptions) {
+  this.hide(); // Idempotent — safe to call twice
+  gsap.killTweensOf(this);
+  super.destroy({ children: true, ...options });
+}
+```
+
+---
+
+## Container Composition Over Deep Inheritance
+
+### Rules
+- Prefer **composition**: build screens from independent sub-containers that each manage their own lifecycle.
+- Avoid inheritance deeper than 2 levels (e.g., `Container → BaseGameScreen → DuelGameScreen` is fine; adding a 4th level is a smell).
+- Sub-containers must not reach into their parent. Communication flows via callbacks or typed events passed at construction.
+
+### Anti-Pattern — Callback Soup (DO NOT)
+
+```ts
+// BAD — 8 getter callbacks creating tight parent-child coupling
+constructor({
+  getPlayerBar, getOpponentBar, getCardDeck, setNextTurnStartDelay,
+  getGameState, getFTUEPointer, hideWaitOpponentToolTips, showWaitOpponentToolTips,
+}: PhaseOneDeps)
+```
+
+### Correct Pattern
+
+```ts
+// GOOD — pass focused interfaces, not getter callbacks
+interface PhaseDeps {
+  playerBar: IProfileBar;
+  opponentBar: IProfileBar;
+  cardDeck: CardDeck;
+  state: GameStateManager;  // Phase reads/writes state through a manager
+  ftue: FTUEController;
+}
+
+constructor(private deps: PhaseDeps) { super(); }
+```
+
+---
+
+## Timer Management
+
+### Rules
+- Wrap `setTimeout`/`setInterval` in a `TimerManager` or track IDs in an array for cleanup.
+- Prefer GSAP's `gsap.delayedCall(seconds, callback)` over raw `setTimeout` — GSAP delayed calls are automatically killed by `gsap.killTweensOf()` and can be paused/resumed.
+- Never use `setTimeout` for animation sequencing. Use GSAP timelines with `.add()` and proper `position` parameters.
+
+```ts
+// BAD — fragile timing chain that can't be cancelled
+setTimeout(() => {
+  this.animatePhaseTwo();
+  setTimeout(() => {
+    this.startTurn();
+  }, 1500);
+}, 2000);
+
+// GOOD — cancellable GSAP timeline
+const timeline = gsap.timeline();
+timeline.call(() => this.animatePhaseTwo(), null, "+=2");
+timeline.call(() => this.startTurn(), null, "+=1.5");
+// On destroy: timeline.kill();
+```
+
+---
+
+## Guard Against Destroyed Objects
+
+Before operating on a PixiJS display object in an async callback (timer, tween `onComplete`, promise `.then`), check if the object is still alive:
+
+```ts
+gsap.to(this.card, {
+  x: 100,
+  duration: 0.5,
+  onComplete: () => {
+    if (this.destroyed) return; // Guard — screen may have been destroyed mid-animation
+    this.card.visible = false;
+  },
+});
+```
+
+This prevents silent errors when a screen is destroyed while animations are in flight.
+
+---
+
+## `app.stage` Usage
+
+- Never add sprites or containers directly to `app.stage` outside of the top-level screen management (Navigation class).
+- `eventListeners.ts` must not create display objects on `app.stage`. If an overlay is needed, route through the Navigation popup system.

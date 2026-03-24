@@ -5,14 +5,12 @@ import { CRASH_EVENTS, CRASH_ACTIONS } from "../constants";
 import type {
   GameTableInfoPayload,
   CrashMatchFoundPayload,
-  CountdownPayload,
   GameStartPayload,
   GameStateSyncPayload,
   CrashPlayerActionPayload,
   RoundOverPayload,
   CrashGameResultPayload,
   CrashErrorPayload,
-  JoinCrashGamePayload,
   CrashActionPayload,
   CrashActionAckResponse,
 } from "../types/crashGame";
@@ -23,7 +21,6 @@ export interface CrashServerToClientEvents {
   [CRASH_EVENTS.GAME_TABLE_INFO]: (data: GameTableInfoPayload) => void;
   [CRASH_EVENTS.MATCH_FOUND]: (data: CrashMatchFoundPayload) => void;
   [CRASH_EVENTS.MATCH_NOT_FOUND]: (data: { matchId: string }) => void;
-  [CRASH_EVENTS.COUNTDOWN]: (data: CountdownPayload) => void;
   [CRASH_EVENTS.GAME_START]: (data: GameStartPayload) => void;
   [CRASH_EVENTS.GAME_STATE_SYNC]: (data: GameStateSyncPayload) => void;
   [CRASH_EVENTS.PLAYER_ACTION]: (data: CrashPlayerActionPayload) => void;
@@ -35,10 +32,6 @@ export interface CrashServerToClientEvents {
 // --- Client → Server Event Map ---
 
 export interface CrashClientToServerEvents {
-  [CRASH_ACTIONS.JOIN_CRASH_GAME]: (
-    data: JoinCrashGamePayload,
-    ack?: (response: CrashActionAckResponse) => void,
-  ) => void;
   [CRASH_ACTIONS.CRASH_ACTION]: (
     data: CrashActionPayload,
     ack?: (response: CrashActionAckResponse) => void,
@@ -49,14 +42,12 @@ export interface CrashClientToServerEvents {
 export type {
   GameTableInfoPayload,
   CrashMatchFoundPayload,
-  CountdownPayload,
   GameStartPayload,
   GameStateSyncPayload,
   CrashPlayerActionPayload,
   RoundOverPayload,
   CrashGameResultPayload,
   CrashErrorPayload,
-  JoinCrashGamePayload,
   CrashActionPayload,
   CrashActionAckResponse,
 };

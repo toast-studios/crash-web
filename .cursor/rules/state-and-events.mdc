@@ -1,0 +1,272 @@
+---
+description: State management and event architecture patterns
+alwaysApply: true
+---
+
+# State & Event Architecture
+
+Rules for managing game state and socket/DOM event flow. Based on scattered state, dual-listener conflicts, and race conditions found in this project.
+
+---
+
+## Centralized Game State
+
+Game state must live in a **single, typed state object** per game session — not scattered across screen fields, phase fields, and module-level variables.
+
+### Anti-Pattern — Scattered State (DO NOT)
+
+```ts
+// BAD: State is everywhere
+// In GameScreen.ts:
+public gameState: GAME_STATE = GAME_STATE.SHUFFLING_CARDS;
+public allowedAction: ALLOW_ACTIONS[] | null = null;
+private isOpponentTakenTurn: boolean = false;
+private isFirstTurn: boolean = true;
+
+// In eventListeners.ts (module-level):
+let currentGameUserId: string | null = null;
+let currentRound: number = 1;
+let lastColumnResultHadDealerBust: boolean = false;
+
+// In TurnInfoManage singleton:
+private earlyTurnInfo: TurnInfo | null = null;
+```
+
+### Correct Pattern — State Manager
+
+```ts
+// GOOD: Single source of truth
+class GameSessionState {
+  readonly gameUserId: string;
+  readonly matchId: string;
+  gameState: GAME_STATE = GAME_STATE.IDLE;
+  allowedActions: ALLOW_ACTIONS[] = [];
+  currentRound = 1;
+  isOpponentTakenTurn = false;
+  isFirstTurn = true;
+  lastColumnResultHadDealerBust = false;
+  pendingTurnInfo: TurnInfo | null = null;
+
+  constructor(init: { gameUserId: string; matchId: string }) {
+    this.gameUserId = init.gameUserId;
+    this.matchId = init.matchId;
+  }
+
+  reset() {
+    this.gameState = GAME_STATE.IDLE;
+    this.allowedActions = [];
+    this.currentRound = 1;
+    this.isOpponentTakenTurn = false;
+    this.isFirstTurn = true;
+    this.lastColumnResultHadDealerBust = false;
+    this.pendingTurnInfo = null;
+  }
+}
+```
+
+### Rules
+- One `GameSessionState` instance per active game. Created when a game starts, passed to screens and phases by reference.
+- Screens and phases read/write the shared state object — they do not maintain private copies.
+- Module-level `let` variables for game state are forbidden. Use the state object.
+
+---
+
+## Typed Socket Events
+
+Socket event names and payloads must have compile-time type safety. No `string + unknown` signatures.
+
+### Define an Event Map
+
+```ts
+// types/socketEvents.ts
+export interface ServerToClientEvents {
+  [EVENTS.TURN_INFO]: (data: TurnInfoPayload) => void;
+  [EVENTS.SETUP_DONE]: (data: SetupDonePayload) => void;
+  [EVENTS.COLUMN_UPDATE]: (data: ColumnUpdatePayload) => void;
+  [EVENTS.GAME_TABLE_INFO]: (data: GameTableInfoPayload) => void;
+  [EVENTS.SHUFFLE_DECK]: (data: ShuffleDeckPayload) => void;
+  [EVENTS.ROUND_STARTING]: (data: RoundStartingPayload) => void;
+  [EVENTS.GAME_RESULT_SCREEN]: (data: GameResultPayload) => void;
+  [EVENTS.WAITING_FOR_OPPONENT]: (data: WaitingPayload) => void;
+}
+
+export interface ClientToServerEvents {
+  [EVENTS.JOIN_GAME]: (data: JoinGamePayload) => void;
+  [EVENTS.PLAYER_ACTION]: (data: PlayerActionPayload) => void;
+  [EVENTS.LEAVE_GAME]: (data: LeaveGamePayload) => void;
+}
+```
+
+### Typed Socket Interface
+
+```ts
+export interface ISocketManager {
+  on<K extends keyof ServerToClientEvents>(
+    event: K,
+    callback: ServerToClientEvents[K]
+  ): void;
+
+  off<K extends keyof ServerToClientEvents>(
+    event: K,
+    callback: ServerToClientEvents[K]
+  ): void;
+
+  emit<K extends keyof ClientToServerEvents>(
+    event: K,
+    ...args: Parameters<ClientToServerEvents[K]>
+  ): void;
+}
+```
+
+### Rules
+- Every socket event must have a corresponding payload type in `types/socketEvents.ts`.
+- The `ISocketManager` interface must use the event map for type-safe `on`/`off`/`emit`.
+- When the server adds a new event, add its type to the map FIRST, then implement handlers.
+- Event constant names (`EVENTS.TURN_INFO`) must match the event map keys exactly.
+
+---
+
+## Event Flow Architecture
+
+Socket events must flow in a single, predictable direction. No dual-listener conflicts.
+
+### Event Flow Diagram
+
+```
+SocketManager (low-level transport)
+    │
+    ▼
+EventRouter (global: routes events to the right screen/handler)
+    │
+    ▼
+ActiveScreen (owns game-session-specific event handling)
+    │
+    ▼
+Phase / UI Components (receive data via method calls, not direct socket listening)
+```
+
+### Rules
+
+1. **One owner per event per lifecycle phase.**
+   - Global `EventRouter` handles events that occur BEFORE a screen exists (e.g., `WAITING_FOR_OPPONENT`, `GAME_TABLE_INFO` that trigger screen creation).
+   - Once a screen is active, the screen owns its events. The global router must NOT also listen to those same events.
+
+2. **Phases and UI components never listen to socket events directly.** They receive data through method calls from their parent screen:
+
+```ts
+// BAD — phase listening to socket events directly
+class PhaseTwo extends Container {
+  constructor() {
+    socketManager.on(EVENTS.COLUMN_UPDATE, this.handleColumn);
+  }
+}
+
+// GOOD — parent screen calls phase methods
+class GameScreen extends Container {
+  private onColumnUpdate = (data: ColumnUpdatePayload) => {
+    this.phaseTwo?.handleColumnUpdate(data);
+  };
+}
+```
+
+3. **No `delayCall` hacks for race conditions.** If a turn-info event arrives before the screen is ready, use a promise-based readiness pattern:
+
+```ts
+// BAD — hacky delay to work around race condition
+socketManager.on(EVENTS.TURN_INFO, (data) => {
+  delayCall(100, () => {
+    currentScreen?.handleTurnInfo(data);
+  });
+});
+
+// GOOD — buffer in state, process when ready
+socketManager.on(EVENTS.TURN_INFO, (data) => {
+  if (activeScreen?.isReady) {
+    activeScreen.handleTurnInfo(data);
+  } else {
+    sessionState.pendingTurnInfo = data;
+  }
+});
+
+// In screen's show():
+async show() {
+  await this.initLayout();
+  this.isReady = true;
+  if (this.state.pendingTurnInfo) {
+    this.handleTurnInfo(this.state.pendingTurnInfo);
+    this.state.pendingTurnInfo = null;
+  }
+}
+```
+
+4. **No `TurnInfoManage` singleton.** The singleton buffer pattern hides state and creates implicit ordering dependencies. Use the `pendingTurnInfo` field on the state object instead.
+
+---
+
+## Navigation Contract
+
+The `Navigation` class must ONLY handle screen transitions. It must not:
+
+- Fetch data from APIs
+- Map currencies
+- Transform wallet data
+- Execute partner-specific logic
+
+### Current Violation
+
+```ts
+// BAD — Navigation.goBackToLobby does data fetching and currency mapping
+async goBackToLobby() {
+  const walletData = await apiClient.getWallet();
+  const mapped = walletData.currencies.map(c => {
+    if (c.currencyCode === "EMT") c.currencyCode = CURRENCY_CODES.PLAY_COINS;
+    // ...
+  });
+  this.showScreen(LobbyScreen, { walletData: mapped });
+}
+```
+
+### Correct Pattern
+
+```ts
+// GOOD — Dedicated service for data, Navigation only transitions
+class WalletService {
+  async getWalletForLobby(): Promise<MappedWalletData> {
+    const raw = await this.apiClient.getWallet();
+    return this.mapCurrencies(raw);
+  }
+}
+
+// Navigation just shows screens
+async goBackToLobby() {
+  const walletData = await walletService.getWalletForLobby();
+  this.showScreen(LobbyScreen, { walletData });
+}
+```
+
+### Rules
+- Navigation may accept data as a parameter and pass it to the screen constructor.
+- Navigation must not import or use `apiClient`, `socketManager`, or partner-specific constants.
+- Data preparation (API calls, transformations) belongs in dedicated service classes that are called BEFORE invoking navigation.
+
+---
+
+## DOM Event Management
+
+### Rules for `window` Events
+
+- Track all `window.addEventListener` calls and their handler references.
+- Remove all listeners when the owning screen is hidden/destroyed.
+- Events like `visibilitychange`, `resize`, `message`, and `appMessage` must follow the same stored-reference pattern described in `pixijs-oop-patterns.mdc`.
+
+### Global vs Screen-Scoped DOM Events
+
+| Event | Scope | Owner |
+|---|---|---|
+| `resize` | Global (app lifetime) | `app.ts` — register once at startup |
+| `visibilitychange` | Global | `app.ts` or dedicated `VisibilityManager` |
+| `message` / `appMessage` | Screen-scoped | Active screen — register in `show()`, remove in `hide()` |
+| `keydown` / `input` | Screen-scoped | Active screen or `InputManager` |
+| `error` / `unhandledrejection` | Global | `sentry.ts` — register once at startup |
+
+Global listeners registered at app startup are acceptable since they live for the app's lifetime. Screen-scoped listeners MUST be cleaned up on screen transitions.

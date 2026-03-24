@@ -1,17 +1,13 @@
-import CONSTANTS, { CRASH_EVENTS, CRASH_ACTIONS } from "../constants";
+import CONSTANTS, { CRASH_EVENTS } from "../constants";
 import { Lobby, MatchFoundData, StoreData } from "../store/storeTypes";
 import type {
-  CountdownPayload,
-  GameStartPayload,
   GameTableInfoPayload,
   CrashMatchFoundPayload,
   CrashGameConfig,
   CrashGameResultPayload,
   CrashErrorPayload,
-  CrashActionAckResponse,
-  CrashPlayerStatus,
 } from "../types/crashGame";
-import { CRASH_TIMING, CRASH_GAME_LIMITS } from "../constants/crashTiming";
+import { CRASH_TIMING } from "../constants/crashTiming";
 import { LOBBY_FORMAT, CURRENCY_CODES } from "../types";
 import { Logger } from "../utils/logger";
 import { navigation } from "../utils/navigation";
@@ -21,7 +17,6 @@ import { socketManager } from "./SocketManager";
 import { ClientEvent } from "../utils/clientEvent";
 import { sendMessageToApp } from "../scripts/webToAppCommunication.helper";
 import { MatchMakingScreen } from "../screens/NewMatchMakingScreen";
-import { CountdownScreen } from "../screens/CountdownScreen";
 import { CrashGameScreen } from "../screens/CrashGameScreen";
 import { CrashResultScreen } from "../screens/CrashResultScreen";
 import { InfoPopup } from "../popups/InfoPopup";
@@ -35,46 +30,6 @@ let currentGameUserId: string | null = null;
 
 /** Crash game config received from gameTableInfo, persists until the next game. */
 let crashGameConfig: CrashGameConfig | null = null;
-
-/**
- * Build the player context needed to emit `joinCrashGame`.
- * Pulls from JWT, localStorage, and query params.
- */
-function buildCrashPlayerContext(): {
-  gameUserId: string;
-  registrationId: string;
-  partnerId: string;
-  partnerUserId: string;
-  username: string;
-  profilePicture: string;
-  lobbyFormat: string;
-} | null {
-  const authToken =
-    localStorageUtil.getItem(LOCAL_STORAGE_KEYS.AUTH_TOKEN) ?? "";
-  const jwtData = authToken ? getJWTData(authToken) : null;
-
-  if (!jwtData?.guid) {
-    Logger.error(
-      "buildCrashPlayerContext: no guid in JWT",
-      new Error("Missing guid"),
-    );
-    return null;
-  }
-
-  const lobbyFormat =
-    localStorageUtil.getItem(LOCAL_STORAGE_KEYS.QUERY_LOBBY_FORMAT) ?? "duel";
-
-  return {
-    gameUserId: jwtData.guid as string,
-    registrationId: (jwtData.registrationId as string) ?? "",
-    partnerId: CURRENT_PARTNER ?? "",
-    partnerUserId: (jwtData.partnerUserId as string) ?? "",
-    username: (jwtData.un as string) ?? "",
-    profilePicture:
-      localStorageUtil.getItem(LOCAL_STORAGE_KEYS.PLAYER_PROFILE_PICTURE) ?? "",
-    lobbyFormat,
-  };
-}
 
 export const attachEventListeners = () => {
   // --- Existing matchmaking handlers (kept as-is) ---
@@ -99,7 +54,7 @@ export const attachEventListeners = () => {
         ClientEvent.GameStateChange({
           gameState: "Matchmaking",
         });
-        await navigation.dismissPopup();
+        // await navigation.dismissPopup();
 
         await navigation.showScreen(MatchMakingScreen, {
           fromRematchModel: false,
@@ -184,47 +139,58 @@ export const attachEventListeners = () => {
 
   socketManager.on<GameTableInfoPayload>(
     CRASH_EVENTS.GAME_TABLE_INFO,
-    (data: GameTableInfoPayload) => {
+    async (data: GameTableInfoPayload) => {
       Logger.info("CRASH GAME_TABLE_INFO", data);
       crashGameConfig = data.gameConfig;
 
-      const ctx = buildCrashPlayerContext();
-      if (!ctx) {
+      const authToken =
+        localStorageUtil.getItem(LOCAL_STORAGE_KEYS.AUTH_TOKEN) ?? "";
+      const jwtData = authToken ? getJWTData(authToken) : null;
+
+      if (!jwtData?.guid) {
         Logger.error(
-          "CRASH GAME_TABLE_INFO: cannot build player context",
-          new Error("No context"),
+          "CRASH GAME_TABLE_INFO: no guid in JWT",
+          new Error("Missing guid"),
         );
         return;
       }
 
       const myPlayer =
-        data.players.find((p) => p.gameUserId === ctx.gameUserId) ??
+        data.players.find((p) => p.gameUserId === (jwtData.guid as string)) ??
         data.players[0];
-      currentGameUserId = myPlayer?.gameUserId ?? ctx.gameUserId;
+      currentGameUserId = myPlayer?.gameUserId ?? (jwtData.guid as string);
 
-      socketManager.emit<CrashActionAckResponse>(
-        CRASH_ACTIONS.JOIN_CRASH_GAME,
-        {
+      // Reconnection into a finished game — skip the game screen entirely;
+      // the gameResultScreen event will handle navigation to the result screen.
+      if (data.isReconnection && data.gameStateSync?.phase === "roundOver") {
+        Logger.info(
+          "CRASH GAME_TABLE_INFO: reconnection into roundOver — waiting for gameResultScreen",
+        );
+        return;
+      }
+
+      try {
+        ClientEvent.GameStateChange({ gameState: "Gameplay" });
+
+        await navigation.showScreen(CrashGameScreen, {
           matchId: data.matchId,
-          totalPlayers: CRASH_GAME_LIMITS.TOTAL_PLAYERS,
-          countdownSeconds: CRASH_TIMING.COUNTDOWN_SECONDS,
-          lobbyFormat: ctx.lobbyFormat,
-          playerDetails: {
-            gameUserId: ctx.gameUserId,
-            registrationId: ctx.registrationId,
-            partnerId: ctx.partnerId,
-            partnerUserId: ctx.partnerUserId,
-            username: ctx.username,
-            profilePicture: ctx.profilePicture,
-            lobbyDetails: {},
-          },
-        },
-        (response) => {
-          if (response?.error) {
-            Logger.error("joinCrashGame rejected", response.message);
-          }
-        },
-      );
+          isReconnection: data.isReconnection,
+          gameConfig: data.gameConfig,
+          players: data.players,
+          gameStateSync: data.gameStateSync,
+        });
+
+        sendMessageToApp({
+          eventName: "close_loader",
+          context: { eventRef: "GAME_TABLE_INFO" },
+        });
+      } catch (error) {
+        Logger.error(
+          "Error on showScreen CrashGameScreen event CRASH GAME_TABLE_INFO",
+          error,
+          data,
+        );
+      }
     },
   );
 
@@ -233,99 +199,6 @@ export const attachEventListeners = () => {
     (data: CrashMatchFoundPayload) => {
       Logger.info("CRASH MATCH_FOUND", data);
       currentGameUserId = data.yourGameUserId;
-
-      const ctx = buildCrashPlayerContext();
-      if (!ctx) {
-        Logger.error(
-          "CRASH MATCH_FOUND: cannot build player context",
-          new Error("No context"),
-        );
-        return;
-      }
-
-      socketManager.emit<CrashActionAckResponse>(
-        CRASH_ACTIONS.JOIN_CRASH_GAME,
-        {
-          matchId: data.matchId,
-          totalPlayers: CRASH_GAME_LIMITS.TOTAL_PLAYERS,
-          countdownSeconds: data.countdownSeconds,
-          lobbyFormat: ctx.lobbyFormat,
-          playerDetails: {
-            gameUserId: data.yourGameUserId,
-            registrationId: ctx.registrationId,
-            partnerId: ctx.partnerId,
-            partnerUserId: ctx.partnerUserId,
-            username: ctx.username,
-            profilePicture: ctx.profilePicture,
-            lobbyDetails: {},
-          },
-        },
-        (response) => {
-          if (response?.error) {
-            Logger.error(
-              "joinCrashGame rejected (matchFound)",
-              response.message,
-            );
-          }
-        },
-      );
-    },
-  );
-
-  socketManager.on<CountdownPayload>(
-    CRASH_EVENTS.COUNTDOWN,
-    async (data: CountdownPayload) => {
-      Logger.info("COUNTDOWN", data);
-
-      const currentScreen = navigation.getCurrentScreen();
-      const isAlreadyOnCountdown =
-        currentScreen?.constructor.name === "CountdownScreen";
-
-      if (!isAlreadyOnCountdown) {
-        try {
-          await navigation.showScreen(CountdownScreen, {
-            secondsRemaining: data.secondsRemaining,
-          });
-        } catch (error) {
-          Logger.error(
-            "Error on showScreen CountdownScreen event COUNTDOWN",
-            error,
-            data,
-          );
-        }
-      }
-    },
-  );
-
-  socketManager.on<GameStartPayload>(
-    CRASH_EVENTS.GAME_START,
-    async (data: GameStartPayload) => {
-      Logger.info("GAME_START", data);
-
-      try {
-        ClientEvent.GameStateChange({
-          gameState: "Gameplay",
-        });
-        ClientEvent.GameStarted({ amount: 0 });
-
-        await navigation.showScreen(CrashGameScreen, {
-          ...data,
-          gameConfig: crashGameConfig ?? undefined,
-        });
-
-        sendMessageToApp({
-          eventName: "close_loader",
-          context: {
-            eventRef: "GAME_START",
-          },
-        });
-      } catch (error) {
-        Logger.error(
-          "Error on showScreen CrashGameScreen event GAME_START",
-          error,
-          data,
-        );
-      }
     },
   );
 
@@ -335,57 +208,72 @@ export const attachEventListeners = () => {
       Logger.info("GAME_RESULT_SCREEN", data);
 
       const myPlayerId = currentGameUserId ?? "";
-
-      // TEMP: Server is sending old blackjack-style payload instead of crash game payload
-      // Transform it to match what CrashResultScreen expects
-      const rawData = data as unknown as {
-        matchId: string;
-        winnerId?: string;
-        looserId?: string;
-        winnerPoints?: number;
-        looserPoints?: number;
-        gameEndType?: string;
-        elapsed?: number;
-        yourRank?: number;
-        yourPrize?: number;
-        yourSurvivalTime?: number;
-        players?: Array<{
-          id: string;
-          name: string;
-          status: CrashPlayerStatus;
-          survivalTime: number;
-          boostCount: number;
-          coolCount: number;
-          prize: number;
-          rank: number;
-        }>;
-      };
-
-      const isWinner = rawData.winnerId === myPlayerId;
-      const isLoser = rawData.looserId === myPlayerId;
+      const isWinner = data.winnerId === myPlayerId;
+      const isLoser = data.looserId === myPlayerId;
 
       ClientEvent.GameStateChange({ gameState: "ResultScreen" });
-      ClientEvent.GameEnded({
-        matchId: rawData.matchId,
-        lobbyFormat: LOBBY_FORMAT.DUEL,
-        gameResult: isWinner ? "player_won" : isLoser ? "player_lost" : "draw",
-        amount: rawData.yourPrize ?? 0,
-        user: {
-          username: "",
-          score: rawData.yourSurvivalTime ?? 0,
-          profilePicture: "",
-          rank: rawData.yourRank ?? 0,
-          winAmount: rawData.yourPrize ?? 0,
-          isTie: false,
-        },
-        opponent: {
-          username: "",
-          score: 0,
-          profilePicture: "",
-          isTie: false,
-        },
-        currencyCode: CURRENCY_CODES.PLAY_COINS,
-      });
+
+      // Build GameEndedContext based on lobby format
+      if (data.lobbyFormat === LOBBY_FORMAT.DUEL) {
+        const opponentPlayer = data.players.find((p) => p.id !== myPlayerId);
+
+        ClientEvent.GameEnded({
+          matchId: data.matchId,
+          lobbyFormat: LOBBY_FORMAT.DUEL,
+          gameResult: isWinner
+            ? "player_won"
+            : isLoser
+              ? "player_lost"
+              : "draw",
+          amount: data.yourPrize,
+          user: {
+            username: data.yourUsername,
+            score: data.yourSurvivalTime,
+            profilePicture: data.yourProfilePicture,
+            rank: data.yourRank,
+            winAmount: data.yourPrize,
+            isTie: data.gameEndType === "DRAW",
+          },
+          opponent: {
+            username: opponentPlayer?.username ?? "",
+            score: opponentPlayer?.survivalTime ?? 0,
+            profilePicture: opponentPlayer?.profilePicture ?? "",
+            rank: opponentPlayer?.rank,
+            winAmount: opponentPlayer?.prize,
+            isTie: data.gameEndType === "DRAW",
+          },
+          currencyCode: data.currencyCode as CURRENCY_CODES,
+        });
+      } else if (data.lobbyFormat === LOBBY_FORMAT.TOURNAMENT) {
+        const opponents = data.players
+          .filter((p) => p.id !== myPlayerId)
+          .map((p) => ({
+            username: p.username,
+            score: p.survivalTime,
+            profilePicture: p.profilePicture,
+            rank: p.rank,
+            winAmount: p.prize,
+            isTie: false,
+          }));
+
+        ClientEvent.GameEnded({
+          matchId: data.matchId,
+          lobbyFormat: LOBBY_FORMAT.TOURNAMENT,
+          gameResult: data.yourRank === 1 ? "player_won" : "player_lost",
+          amount: data.yourPrize,
+          user: {
+            username: data.yourUsername,
+            score: data.yourSurvivalTime,
+            profilePicture: data.yourProfilePicture,
+            rank: data.yourRank,
+            winAmount: data.yourPrize,
+            isTie: false,
+          },
+          opponent: opponents,
+          currencyCode: data.currencyCode as CURRENCY_CODES,
+        });
+      }
+
       ClientEvent.GameClose();
 
       try {
@@ -399,18 +287,11 @@ export const attachEventListeners = () => {
             : () => navigation.goBackToLobby(true);
 
         await navigation.showScreen(CrashResultScreen, {
-          matchId: rawData.matchId,
-          elapsed: rawData.elapsed ?? 0,
-          yourRank: rawData.yourRank ?? (isWinner ? 1 : isLoser ? 2 : 0),
-          yourPrize: rawData.yourPrize ?? 0,
-          yourSurvivalTime:
-            rawData.yourSurvivalTime ??
-            (isWinner
-              ? (rawData.winnerPoints ?? 0)
-              : isLoser
-                ? (rawData.looserPoints ?? 0)
-                : 0),
-          players: rawData.players ?? [],
+          matchId: data.matchId,
+          yourRank: data.yourRank,
+          yourPrize: data.yourPrize,
+          yourSurvivalTime: data.yourSurvivalTime,
+          players: data.players,
           myPlayerId,
           didWin: isWinner,
           onNextRound,

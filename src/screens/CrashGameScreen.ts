@@ -10,7 +10,7 @@ import {
 import { socketManager } from "../network/SocketManager";
 import {
   CrashGameSessionState,
-  type CrashGameConfig,
+  type GameTableInfoPayload,
   type GameStartPayload,
   type GameStateSyncPayload,
   type CrashPlayerActionPayload,
@@ -29,6 +29,7 @@ import { SurviveTimer } from "../ui/crash/SurviveTimer";
 import { CrashFeed } from "../ui/crash/CrashFeed";
 import { PlayerCountHeader } from "../ui/crash/PlayerCountHeader";
 import { HeatDeltaText } from "../ui/crash/HeatDeltaText";
+import { ActionBubbleEffect } from "../ui/crash/ActionBubbleEffect";
 import { app } from "../app";
 import { navigation } from "../utils/navigation";
 import { getCurrentGameUserId } from "../network/eventListeners";
@@ -59,8 +60,18 @@ const CRITICAL_SHAKE = {
   SETTLE_DURATION: 0.1,
 } as const;
 
-export interface CrashGameScreenOptions extends GameStartPayload {
-  gameConfig?: CrashGameConfig;
+enum CrashAction {
+  COOL = "cool",
+  BOOST = "boost",
+  EXIT_SHIP = "exit_ship",
+}
+
+export interface CrashGameScreenOptions {
+  matchId: string;
+  isReconnection: boolean;
+  gameConfig: GameTableInfoPayload["gameConfig"];
+  players: GameTableInfoPayload["players"];
+  gameStateSync?: GameStateSyncPayload;
 }
 
 /** Vertical gap between progress bar bottom and player box. */
@@ -78,6 +89,8 @@ export class CrashGameScreen extends Container {
   public static assetBundles = ["common", "game"];
 
   private state: CrashGameSessionState;
+  private isReconnection: boolean;
+  private animateShow: boolean;
   private isReady = false;
   private optimisticExited = false;
   private hasTriggeredBlast = false;
@@ -98,6 +111,7 @@ export class CrashGameScreen extends Container {
   private playerCountHeader: PlayerCountHeader;
   private feed: CrashFeed;
   private heatDeltaText: HeatDeltaText;
+  private bubbleEffect: ActionBubbleEffect;
   public spaceshipLottie: LottiePlayer;
 
   private prevHeatZone: HeatZone = "green";
@@ -110,7 +124,7 @@ export class CrashGameScreen extends Container {
 
   private readonly handleGameStateSync = (data: GameStateSyncPayload) => {
     if (this.destroyed) return;
-    console.log(`[CrashGameScreen] 🔄 gameStateSync:`, {
+    Logger.info(`[CrashGameScreen] 🔄 gameStateSync:`, {
       phase: data.phase,
       heat: data.heat,
       heatZone: data.heatZone,
@@ -126,7 +140,7 @@ export class CrashGameScreen extends Container {
   private readonly handlePlayerAction = (data: CrashPlayerActionPayload) => {
     if (this.destroyed || !this.isReady) return;
 
-    console.log(`[CrashGameScreen] 🎮 handlePlayerAction:`, {
+    Logger.info(`[CrashGameScreen] 🎮 handlePlayerAction:`, {
       action: data.action,
       gameUserId: data.gameUserId,
       username: data.username,
@@ -134,7 +148,7 @@ export class CrashGameScreen extends Container {
       isMyPlayer: data.gameUserId === this.state.myPlayerId,
     });
 
-    if (data.action === "cool" || data.action === "boost") {
+    if (data.action === CrashAction.COOL || data.action === CrashAction.BOOST) {
       const delta = this.state.computeHeatDelta(data.action);
       this.state.heatDeltaEvent = {
         delta,
@@ -151,6 +165,18 @@ export class CrashGameScreen extends Container {
     this.updateDisplay();
   };
 
+  private readonly handleGameStart = (data: GameStartPayload) => {
+    if (this.destroyed) return;
+    Logger.info(
+      "[CrashGameScreen] gameStart received — enabling gameplay",
+      data,
+    );
+    this.state.applyGameStart(data);
+    this.syncScrollSpeed();
+    this.updateDisplay();
+    ClientEvent.GameStarted({ amount: 0 });
+  };
+
   private readonly handleAppMessage = (event: MessageEvent) => {
     if (this.destroyed) return;
     const { type } = event.data;
@@ -163,12 +189,16 @@ export class CrashGameScreen extends Container {
   constructor(options: CrashGameScreenOptions) {
     super();
 
+    this.isReconnection = options.isReconnection;
+    this.animateShow = !options.isReconnection;
+
     this.state = new CrashGameSessionState();
     this.state.myPlayerId = getCurrentGameUserId();
-    if (options.gameConfig) {
-      this.state.gameConfig = options.gameConfig;
+    this.state.applyGameTableInfo(options);
+
+    if (this.isReconnection && options.gameStateSync) {
+      this.state.applyGameStateSync(options.gameStateSync);
     }
-    this.state.applyGameStart(options);
 
     this.background = new SpaceBackground();
     this.addChild(this.background);
@@ -176,7 +206,7 @@ export class CrashGameScreen extends Container {
     this.trail = Sprite.from(CRASH_ASSETS.TRAIL);
     this.trail.anchor.set(0.5);
     this.trail.scale.set(0.5);
-    this.trail.alpha = 0;
+    this.trail.alpha = this.isReconnection ? 1 : 0;
     this.addChild(this.trail);
 
     this.crossButton = new CrossButton({
@@ -216,10 +246,15 @@ export class CrashGameScreen extends Container {
     this.heatDeltaText = new HeatDeltaText();
     this.dashboardContainer.addChild(this.heatDeltaText);
 
+    this.bubbleEffect = new ActionBubbleEffect();
+    this.dashboardContainer.addChild(this.bubbleEffect);
+
+    const { coolMaxUses, boostMaxUses } = options.gameConfig;
+
     this.coolButton = new CrashActionButton({
       textureAlias: CRASH_ASSETS.COOL_BUTTON,
       onPress: () => this.sendCool(),
-      maxUses: options.coolMaxUses,
+      maxUses: coolMaxUses,
     });
     this.coolButton.setButtonScale(0.85);
     this.dashboardContainer.addChild(this.coolButton);
@@ -233,19 +268,12 @@ export class CrashGameScreen extends Container {
     this.heatButton = new CrashActionButton({
       textureAlias: CRASH_ASSETS.HEAT_BUTTON,
       onPress: () => this.sendBoost(),
-      maxUses: options.boostMaxUses,
+      maxUses: boostMaxUses,
     });
     this.heatButton.setButtonScale(0.85);
     this.dashboardContainer.addChild(this.heatButton);
 
     this.addChild(this.dashboardContainer);
-
-    console.log(`[CrashGameScreen] 🚀 Initializing spaceship lottie with:`, {
-      path: CRASH_LOTTIE_PATHS.SPACESHIP_FLAME,
-      width: CRASH_LOTTIE_LAYOUT.WIDTH,
-      height: CRASH_LOTTIE_LAYOUT.HEIGHT,
-      loop: true,
-    });
 
     this.spaceshipLottie = new LottiePlayer({
       initialPath: CRASH_LOTTIE_PATHS.SPACESHIP_FLAME,
@@ -259,14 +287,23 @@ export class CrashGameScreen extends Container {
   }
 
   public async show(): Promise<void> {
-    console.log(`[CrashGameScreen] 👁️ show() - Starting screen`);
+    Logger.info(
+      `[CrashGameScreen] show() - isReconnection=${this.isReconnection}, animateShow=${this.animateShow}`,
+    );
     this.isReady = true;
     this.spaceshipLottie.setVisible(true);
     this.spaceshipLottie.play();
-    console.log(
-      `[CrashGameScreen] ▶️ Playing spaceship lottie and starting parabolic animation`,
-    );
-    this.animateSpaceshipToTrail();
+
+    if (this.animateShow) {
+      this.animateSpaceshipToTrail();
+    } else {
+      this.repositionSpaceshipLottie();
+      this.setSpaceshipRotationInstant();
+      this.trail.alpha = 1;
+      this.syncScrollSpeed();
+      this.syncShakeEffect();
+    }
+
     this.addWebviewListeners();
     this.updateDisplay();
   }
@@ -302,7 +339,7 @@ export class CrashGameScreen extends Container {
     this.background.resize(width, height);
 
     this.trail.x = centerX;
-    this.trail.y = height / 1.6;
+    this.trail.y = (5 * height) / 8 + 50; // Moved down by 50px
 
     this.logoBaseX = TOP_EDGE_PADDING;
     this.logoBaseY = TOP_EDGE_PADDING;
@@ -324,12 +361,12 @@ export class CrashGameScreen extends Container {
     this.crossButton.y = TOP_EDGE_PADDING + crossH / 2;
 
     if (!this.isAnimatingToTrail) {
-      console.log(
+      Logger.info(
         `[CrashGameScreen] 📐 Resize - repositioning lottie (not animating)`,
       );
-      this.repositionSpaceshipLottie(width, height);
+      this.repositionSpaceshipLottie();
     } else {
-      console.log(
+      Logger.info(
         `[CrashGameScreen] 📐 Resize - skipping lottie reposition (animation in progress)`,
       );
     }
@@ -340,8 +377,11 @@ export class CrashGameScreen extends Container {
     this.heatDeltaText.x = width / 2;
     this.heatDeltaText.y = this.progressBar.y - 16;
 
+    this.bubbleEffect.x = width / 2;
+    this.bubbleEffect.y = this.progressBar.y + PROGRESS_BAR_HEIGHT;
+
     this.surviveTimer.x = width / 2;
-    this.surviveTimer.y = this.progressBar.y - 30;
+    this.surviveTimer.y = this.progressBar.y - 25;
 
     this.playerBox.x = centerX;
     this.playerBox.y =
@@ -378,6 +418,7 @@ export class CrashGameScreen extends Container {
 
   public destroy(options?: DestroyOptions): void {
     this.hide();
+    this.bubbleEffect.destroy();
     this.spaceshipLottie.destroy();
     super.destroy({
       children: true,
@@ -395,7 +436,7 @@ export class CrashGameScreen extends Container {
 
     socketManager.emit<CrashActionAckResponse>(
       CRASH_ACTIONS.CRASH_ACTION,
-      { action: "cool" },
+      { action: CrashAction.COOL },
       (response) => {
         if (this.destroyed) return;
         if (response.error) {
@@ -405,6 +446,8 @@ export class CrashGameScreen extends Container {
           );
           this.state.coolUsesLeft++;
           this.updateDisplay();
+        } else {
+          this.bubbleEffect.trigger("cool");
         }
       },
     );
@@ -418,7 +461,7 @@ export class CrashGameScreen extends Container {
 
     socketManager.emit<CrashActionAckResponse>(
       CRASH_ACTIONS.CRASH_ACTION,
-      { action: "boost" },
+      { action: CrashAction.BOOST },
       (response) => {
         if (this.destroyed) return;
         if (response.error) {
@@ -428,6 +471,8 @@ export class CrashGameScreen extends Container {
           );
           this.state.boostUsesLeft++;
           this.updateDisplay();
+        } else {
+          this.bubbleEffect.trigger("heat");
         }
       },
     );
@@ -436,7 +481,7 @@ export class CrashGameScreen extends Container {
   public sendExit(): void {
     if (!this.state.isMyPlayerAlive() || this.optimisticExited) return;
 
-    console.log(`[CrashGameScreen] 🚪 Sending exit_ship action to server`);
+    Logger.info(`[CrashGameScreen] 🚪 Sending exit_ship action to server`);
     this.optimisticExited = true;
     this.coolButton.setEnabled(false);
     this.cashoutButton.setEnabled(false);
@@ -444,10 +489,10 @@ export class CrashGameScreen extends Container {
 
     socketManager.emit<CrashActionAckResponse>(
       CRASH_ACTIONS.CRASH_ACTION,
-      { action: "exit_ship" },
+      { action: CrashAction.EXIT_SHIP },
       (response) => {
         if (this.destroyed) return;
-        console.log(
+        Logger.info(
           `[CrashGameScreen] 📨 Server response for exit_ship:`,
           response,
         );
@@ -460,17 +505,10 @@ export class CrashGameScreen extends Container {
           this.optimisticExited = false;
           this.updateDisplay();
         } else {
-          console.log(
-            `[CrashGameScreen] 🛑 Exit confirmed by server - switching to SPACESHIP_STOP`,
-          );
           Logger.info(
-            "CrashGameScreen: Exit confirmed, showing Stop animation",
+            `[CrashGameScreen] 🛑 Exit confirmed by server - keeping flame animation`,
           );
-          this.spaceshipLottie.loadAnimation(
-            CRASH_LOTTIE_PATHS.SPACESHIP_STOP,
-            true,
-          );
-          this.spaceshipLottie.play();
+          // Keep SPACESHIP_FLAME animation playing after cashout
         }
       },
     );
@@ -526,11 +564,51 @@ export class CrashGameScreen extends Container {
   }
 
   /**
+   * Computes the final CSS position where the spaceship lottie's bottom edge
+   * should coincide with the trail sprite's top tip, for any screen size / DPR.
+   *
+   * Coordinate model:
+   *  - PixiJS stores coordinates in physical pixels when resolution = devicePixelRatio.
+   *  - scaleX/scaleY convert PixiJS coords → CSS viewport pixels.
+   *  - trail anchor is (0.5), so its top tip in PixiJS = trail.y − trail.height/2.
+   *  - Converting that tip to CSS and subtracting lottieH gives the lottie's top (CSS).
+   */
+  private computeLottieFinalPosition(): { x: number; y: number } {
+    const canvas = app.renderer.canvas as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const pixiWidth = app.renderer.width;
+    const pixiHeight = app.renderer.height;
+
+    const lottieW = CRASH_LOTTIE_LAYOUT.WIDTH;
+    const lottieH = CRASH_LOTTIE_LAYOUT.HEIGHT;
+
+    const scaleX = rect.width / pixiWidth;
+    const scaleY = rect.height / pixiHeight;
+
+    // Trail center in CSS pixels (anchor is 0.5, positioned at pixiHeight / 1.6 + 50px offset)
+    const trailCenterCssY = (pixiHeight / 1.6 + 50) * scaleY + rect.top;
+
+    // Trail top tip in CSS pixels: center minus half the PixiJS height converted to CSS
+    const trailTopTipCssY = trailCenterCssY - (this.trail.height / 2) * scaleY;
+
+    // Fine-tune final lottie position relative to trail tip (CSS pixels)
+    const DIAGONAL_OFFSET_X = 25; // positive = right, lower = more left
+    const DIAGONAL_OFFSET_Y = 60; // positive = down
+
+    // Lottie top (CSS) = trail tip − lottie height + diagonal offsets
+    const finalX =
+      (pixiWidth / 2) * scaleX + rect.left - lottieW / 2 + DIAGONAL_OFFSET_X;
+    const finalY = trailTopTipCssY - lottieH + DIAGONAL_OFFSET_Y;
+
+    return { x: finalX, y: finalY };
+  }
+
+  /**
    * Animates the spaceship lottie on a parabolic path from center to above the trail.
    * The spaceship tilts diagonally to the left during the animation.
    */
   private animateSpaceshipToTrail(): void {
-    console.log(`[CrashGameScreen] 🌈 Starting parabolic animation to trail`);
+    Logger.info(`[CrashGameScreen] 🌈 Starting parabolic animation to trail`);
 
     const canvas = app.renderer.canvas as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
@@ -546,14 +624,12 @@ export class CrashGameScreen extends Container {
     const startX = (pixiWidth / 2) * scaleX + rect.left - lottieW / 2 + 60;
     const startY = (pixiHeight / 2) * scaleY + rect.top - lottieH / 2 + 120;
 
-    const trailY = (pixiHeight / 1.6) * scaleY + rect.top;
-    const endX = (pixiWidth / 2) * scaleX + rect.left - lottieW / 2 + 35;
-    const endY = trailY - lottieH - 190;
+    const { x: endX, y: endY } = this.computeLottieFinalPosition();
 
-    console.log(`[CrashGameScreen] 📍 Animation path:`, {
+    Logger.info(`[CrashGameScreen] 📍 Animation path:`, {
       start: { x: startX, y: startY },
       end: { x: endX, y: endY },
-      rotation: -30,
+      rotation: CRASH_LAYOUT.SPACESHIP_ROTATION,
       duration: 2,
     });
 
@@ -567,7 +643,7 @@ export class CrashGameScreen extends Container {
     gsap.to(lottieContainer, {
       left: endX,
       top: endY,
-      rotation: -30,
+      rotation: CRASH_LAYOUT.SPACESHIP_ROTATION,
       duration: 2,
       ease: "power2.inOut",
       transformOrigin: "center center",
@@ -578,13 +654,13 @@ export class CrashGameScreen extends Container {
         lottieContainer.style.left = `${currentLeft}px`;
       },
       onComplete: () => {
-        console.log(
+        Logger.info(
           `[CrashGameScreen] ✅ Parabolic animation complete - lottie at final position`,
         );
         this.isAnimatingToTrail = false;
 
         if (!this.destroyed && this.trail) {
-          console.log(`[CrashGameScreen] 🌟 Fading in trail sprite`);
+          Logger.info(`[CrashGameScreen] 🌟 Fading in trail sprite`);
           gsap.to(this.trail, {
             alpha: 1,
             duration: 0.8,
@@ -596,27 +672,29 @@ export class CrashGameScreen extends Container {
   }
 
   /**
-   * Converts PixiJS center-of-screen coordinates to CSS viewport pixels
-   * and repositions the spaceship lottie overlay accordingly.
+   * Repositions the spaceship lottie overlay so its bottom edge coincides with
+   * the trail sprite's top tip, accounting for current screen dimensions and DPR.
+   * Parameters are kept for call-site compatibility but are unused — the helper
+   * reads from the renderer directly to ensure fresh values.
    */
-  private repositionSpaceshipLottie(
-    pixiWidth: number,
-    pixiHeight: number,
-  ): void {
-    const canvas = app.renderer.canvas as HTMLCanvasElement;
-    const rect = canvas.getBoundingClientRect();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private repositionSpaceshipLottie(): void {
+    const { x: finalX, y: finalY } = this.computeLottieFinalPosition();
+    this.spaceshipLottie.reposition(
+      finalX,
+      finalY,
+      CRASH_LOTTIE_LAYOUT.WIDTH,
+      CRASH_LOTTIE_LAYOUT.HEIGHT,
+    );
+  }
 
-    const lottieW = CRASH_LOTTIE_LAYOUT.WIDTH;
-    const lottieH = CRASH_LOTTIE_LAYOUT.HEIGHT;
-
-    const scaleX = rect.width / pixiWidth;
-    const scaleY = rect.height / pixiHeight;
-
-    const trailY = (pixiHeight / 1.6) * scaleY + rect.top;
-    const finalX = (pixiWidth / 2) * scaleX + rect.left - lottieW / 2;
-    const finalY = trailY - lottieH - 40;
-
-    this.spaceshipLottie.reposition(finalX, finalY, lottieW, lottieH);
+  /** Instantly sets the spaceship lottie rotation without animation (used on reconnection). */
+  private setSpaceshipRotationInstant(): void {
+    const lottieContainer = this.spaceshipLottie.getContainerElement();
+    if (lottieContainer) {
+      lottieContainer.style.transform = `rotate(${CRASH_LAYOUT.SPACESHIP_ROTATION}deg)`;
+      lottieContainer.style.transformOrigin = "center center";
+    }
   }
 
   /**
@@ -636,6 +714,10 @@ export class CrashGameScreen extends Container {
   // --- Socket event lifecycle ---
 
   private startSocketEventListeners(): void {
+    socketManager.on<GameStartPayload>(
+      CRASH_EVENTS.GAME_START,
+      this.handleGameStart,
+    );
     socketManager.on<GameStateSyncPayload>(
       CRASH_EVENTS.GAME_STATE_SYNC,
       this.handleGameStateSync,
@@ -651,6 +733,7 @@ export class CrashGameScreen extends Container {
   }
 
   private stopSocketEventListeners(): void {
+    socketManager.off(CRASH_EVENTS.GAME_START, this.handleGameStart);
     socketManager.off(CRASH_EVENTS.GAME_STATE_SYNC, this.handleGameStateSync);
     socketManager.off(CRASH_EVENTS.PLAYER_ACTION, this.handlePlayerAction);
     socketManager.off(CRASH_EVENTS.ROUND_OVER, this.handleRoundOver);
@@ -756,7 +839,7 @@ export class CrashGameScreen extends Container {
     if (this.hasTriggeredBlast || this.destroyed) return;
 
     if (this.state.phase === "roundOver") {
-      console.log(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
+      Logger.info(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
       this.hasTriggeredBlast = true;
       this.spaceshipLottie.loadAnimation(
         CRASH_LOTTIE_PATHS.SPACESHIP_BLAST,

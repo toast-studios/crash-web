@@ -6,7 +6,7 @@ const PLAYER_BOX = {
   WIDTH: 100,
   HEIGHT: 20,
   /** Horizontal padding from background edge so text stays inside */
-  PADDING_H: 28,
+  PADDING_H: 20,
   ALIVE_COLOR: 0x00ff88,
   DIPPED_COLOR: 0xffaa00,
   TEXT_COLOR: 0xffffff,

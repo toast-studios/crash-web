@@ -82,7 +82,7 @@ export type TournamentGameEndedContext = {
   amount: number;
   user: GameParticipant;
   opponent: GameParticipant[];
-  currencyCode?: CURRENCY_CODES;
+  currencyCode: CURRENCY_CODES;
 };
 
 export type GameEndedContext =
