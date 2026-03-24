@@ -81,6 +81,13 @@ class SocketManager implements ISocketManager {
   }
 
   private startPingInterval() {
+    // Clear any existing interval before starting a new one so rapid
+    // connect/reconnect cycles don't accumulate parallel ping loops.
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+
     this.pingInterval = setInterval(() => {
       try {
         this.socketInstance.emit("ping", null, () => {
@@ -138,23 +145,45 @@ class SocketManager implements ISocketManager {
     if (!this.socket?.connected) {
       this.socketInstance.connect();
     }
-    await new Promise((resolve, reject) => {
-      this.socket?.on("connect", () => {
+    await new Promise<void>((resolve, reject) => {
+      // Use `once` so these one-shot handshake listeners don't accumulate across
+      // repeated connect() calls (e.g. on each visibilitychange reconnect).
+      const onConnect = () => {
         Logger.info("Connected to server", this.socket?.id);
-        this.startPingInterval(); // Start ping interval when connected
-        resolve(true);
-      });
+        this.startPingInterval();
+        resolve();
+      };
 
-      this.socket?.on("connect_error", (error) => {
+      const onConnectError = (error: Error) => {
+        cleanup();
         reject(error);
-      });
-      this.socket?.on("error", (error) => {
+      };
+
+      const onError = (error: Error) => {
         Logger.error("error listener", error);
+        cleanup();
         reject(error);
-      });
-      this.socket?.on("disconnect", () => {
+      };
+
+      const onDisconnect = () => {
+        cleanup();
         reject(new Error("Disconnected from server"));
+      };
+
+      const cleanup = () => {
+        this.socket?.off("connect", onConnect);
+        this.socket?.off("connect_error", onConnectError);
+        this.socket?.off("error", onError);
+        this.socket?.off("disconnect", onDisconnect);
+      };
+
+      this.socket?.once("connect", () => {
+        cleanup();
+        onConnect();
       });
+      this.socket?.once("connect_error", onConnectError);
+      this.socket?.once("error", onError);
+      this.socket?.once("disconnect", onDisconnect);
     });
   }
 

@@ -6,6 +6,25 @@ import { initLottie } from "./animations/util";
 import { bgm } from "./utils/audio";
 import { CURRENT_PARTNER, PARTNER_ID } from "./network/constants";
 
+/**
+ * Returns a debounced version of `fn` that delays invocation until `waitMs`
+ * milliseconds after the last call. Used to prevent rapid-fire visibilitychange
+ * events from triggering multiple socket disconnect/reconnect cycles on Android.
+ */
+function debounce<T extends (...args: Parameters<T>) => void>(
+  fn: T,
+  waitMs: number,
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, waitMs);
+  };
+}
+
 export const MAX_WIDTH = 420;
 export const MAX_HEIGHT = 932;
 export const app = new Application();
@@ -49,8 +68,24 @@ export async function initApp() {
       );
     }
 
-    window.addEventListener("resize", () => resizeWindowResolution(app));
+    // Store the handler reference so the listener could be removed if ever needed.
+    const handleResize = () => resizeWindowResolution(app);
+    window.addEventListener("resize", handleResize);
     resizeWindowResolution(app);
+
+    // Detect WebGL context loss (GPU memory pressure, backgrounded app, driver reset).
+    // Prevent the browser default which would leave a blank canvas and freeze the game.
+    const canvas = app.renderer.canvas as HTMLCanvasElement;
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      Logger.error(
+        "WebGL context lost — GPU memory may be exhausted",
+        new Error("webglcontextlost"),
+      );
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      Logger.info("WebGL context restored — reinitialising renderer");
+    });
 
     // Load basic assets
     dispatchProgress("bundles", 40, "Loading basic assets...");
@@ -98,8 +133,10 @@ export async function initApp() {
       Logger.error("Failed to start background music:", error);
     }
 
-    // Setup visibility change listener
-    document.addEventListener("visibilitychange", visibilityChange);
+    // Debounce so rapid-fire visibility changes (common on Android webviews) don't
+    // trigger multiple socket disconnect/reconnect cycles in quick succession.
+    const debouncedVisibilityChange = debounce(visibilityChange, 300);
+    document.addEventListener("visibilitychange", debouncedVisibilityChange);
 
     // Game assets loaded - ready to show first screen
     if (import.meta.env.VITE_GAME_MODE === "speed") {

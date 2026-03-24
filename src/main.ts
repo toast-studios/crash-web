@@ -7,6 +7,22 @@ import { getQueryParams } from "./utils/window";
 import { localStorageUtil, LOCAL_STORAGE_KEYS } from "./utils/localStorageUtil";
 import { LOBBY_FORMAT } from "./types";
 
+/**
+ * Shows a minimal HTML error overlay when the popup system is not yet available.
+ * Avoids alert() which blocks the JS thread and crashes some Android webviews.
+ */
+function showFatalErrorOverlay(message: string): void {
+  try {
+    const overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;inset:0;background:#0d0d2b;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:24px;font-family:sans-serif;text-align:center;";
+    overlay.innerHTML = `<p style="font-size:16px;margin-bottom:16px;">Something went wrong. Please reload.</p><p style="font-size:12px;color:#888;word-break:break-all;">${message}</p><button onclick="window.location.reload()" style="margin-top:20px;padding:10px 24px;background:#e05c00;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">Reload</button>`;
+    document.body.appendChild(overlay);
+  } catch {
+    // If DOM is unavailable, silently fail — crashing here would mask the original error.
+  }
+}
+
 // Helper function to dispatch loading progress
 const dispatchProgress = (
   step: string,
@@ -19,6 +35,25 @@ const dispatchProgress = (
     }),
   );
 };
+
+/**
+ * Global safety net for unhandled promise rejections.
+ * Without this, a rejected promise from any socket event, asset load, or animation
+ * will silently crash the JS context in some Android webviews.
+ */
+window.addEventListener("unhandledrejection", (event) => {
+  const reason =
+    event.reason instanceof Error
+      ? event.reason.message
+      : String(event.reason ?? "Unknown promise rejection");
+  Logger.error("Unhandled promise rejection", event.reason, { reason });
+  logError(event.reason instanceof Error ? event.reason : new Error(reason), {
+    message: "Unhandled promise rejection",
+    reason,
+  });
+  // Prevent the default which would terminate the JS context in some environments.
+  event.preventDefault();
+});
 
 export const init = async () => {
   try {
@@ -120,10 +155,9 @@ export const init = async () => {
     const app = await import("./app");
     await app.initApp();
   } catch (error) {
-    alert("Error initializing app : " + (error as Error).message);
-    logError(error as Error, {
-      message: "Error initializing app",
-    });
+    const message = (error as Error).message ?? "Unknown error";
+    logError(error as Error, { message: "Error initializing app" });
+    showFatalErrorOverlay("Error initializing app: " + message);
     // TODO: send app exit event
     return navigation.closeWebView("Error initializing app");
   }

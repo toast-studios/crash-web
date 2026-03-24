@@ -3,26 +3,15 @@ import {
   Graphics,
   TilingSprite,
   FillGradient,
-  Rectangle,
-  type Texture,
+  Texture,
   type DestroyOptions,
 } from "pixi.js";
-import { app } from "../app";
+import { CRASH_ASSETS } from "../constants/crashLayout";
 
 const GRADIENT_COLORS = {
   TOP: 0x0d0d2b,
   MIDDLE: 0x1a0a3e,
   BOTTOM: 0x0d0d2b,
-} as const;
-
-const STAR_FIELD = {
-  TEXTURE_WIDTH: 420,
-  TEXTURE_HEIGHT: 934,
-  STAR_COUNT: 120,
-  MIN_RADIUS: 0.5,
-  MAX_RADIUS: 2.5,
-  MIN_ALPHA: 0.3,
-  MAX_ALPHA: 1.0,
 } as const;
 
 const DEFAULT_SCROLL_SPEED = 0.5;
@@ -34,17 +23,16 @@ const SPEED_LERP_FACTOR = 0.08;
  * Scrolling space background: a static purple gradient underneath a
  * vertically-scrolling star-field TilingSprite.
  *
+ * Uses the shared `space_stars` texture from the common atlas — no per-instance
+ * GPU texture is generated, avoiding WebGL memory exhaustion on repeated screen
+ * creation (rematch, rejoin).
+ *
  * Call `update(delta)` every frame (via the app ticker) to drive the scroll.
  * Adjust speed dynamically with `setScrollSpeed(speed)`.
- *
- * The star-field is currently generated procedurally. When the real
- * `space_stars` asset is available in the bundle, replace
- * `generateStarFieldTexture()` with `Texture.from("space_stars")`.
  */
 export class SpaceBackground extends Container {
   private gradient: Graphics;
   private spaceStars: TilingSprite;
-  private starTexture: Texture;
   private scrollSpeed = DEFAULT_SCROLL_SPEED;
   private targetScrollSpeed = DEFAULT_SCROLL_SPEED;
 
@@ -54,12 +42,10 @@ export class SpaceBackground extends Container {
     this.gradient = new Graphics();
     this.addChild(this.gradient);
 
-    this.starTexture = this.generateStarFieldTexture();
-    this.spaceStars = new TilingSprite({
-      texture: this.starTexture,
-      width: STAR_FIELD.TEXTURE_WIDTH,
-      height: STAR_FIELD.TEXTURE_HEIGHT,
-    });
+    // Use the shared atlas texture — no GPU allocation; texture is owned by
+    // the asset cache and must NOT be destroyed by this instance.
+    const starsTexture = Texture.from(CRASH_ASSETS.SPACE_STARS);
+    this.spaceStars = new TilingSprite({ texture: starsTexture });
     this.addChild(this.spaceStars);
   }
 
@@ -87,14 +73,11 @@ export class SpaceBackground extends Container {
   }
 
   public destroy(options?: DestroyOptions): void {
-    const textureRef = this.starTexture;
+    // Do NOT destroy the atlas texture — it is shared and owned by the asset cache.
     super.destroy({
       children: true,
       ...(typeof options === "object" ? options : {}),
     });
-    if (textureRef && !textureRef.destroyed) {
-      textureRef.destroy(true);
-    }
   }
 
   private drawGradient(width: number, height: number): void {
@@ -106,42 +89,5 @@ export class SpaceBackground extends Container {
     gradientFill.addColorStop(1, GRADIENT_COLORS.BOTTOM);
 
     this.gradient.rect(0, 0, width, height).fill(gradientFill);
-  }
-
-  /**
-   * Procedurally generates a star-field texture with random white dots
-   * of varying size and opacity. Uses `renderer.generateTexture` with an
-   * explicit frame so the output is exactly TEXTURE_WIDTH x TEXTURE_HEIGHT
-   * regardless of where stars happen to fall.
-   */
-  private generateStarFieldTexture(): Texture {
-    const {
-      TEXTURE_WIDTH,
-      TEXTURE_HEIGHT,
-      STAR_COUNT,
-      MIN_RADIUS,
-      MAX_RADIUS,
-      MIN_ALPHA,
-      MAX_ALPHA,
-    } = STAR_FIELD;
-
-    const gfx = new Graphics();
-
-    for (let i = 0; i < STAR_COUNT; i++) {
-      const x = Math.random() * TEXTURE_WIDTH;
-      const y = Math.random() * TEXTURE_HEIGHT;
-      const radius = MIN_RADIUS + Math.random() * (MAX_RADIUS - MIN_RADIUS);
-      const alpha = MIN_ALPHA + Math.random() * (MAX_ALPHA - MIN_ALPHA);
-
-      gfx.circle(x, y, radius).fill({ color: 0xffffff, alpha });
-    }
-
-    const texture = app.renderer.generateTexture({
-      target: gfx,
-      frame: new Rectangle(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT),
-    });
-
-    gfx.destroy();
-    return texture;
   }
 }

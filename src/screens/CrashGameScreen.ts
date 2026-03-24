@@ -414,6 +414,16 @@ export class CrashGameScreen extends Container {
 
   public destroy(options?: DestroyOptions): void {
     this.hide();
+
+    // Kill any in-flight GSAP tweens targeting the lottie DOM container BEFORE
+    // the container element is removed from the DOM by spaceshipLottie.destroy().
+    // Without this, an onUpdate/onComplete callback fires against a null element
+    // and throws "Cannot read properties of null (reading 'style')".
+    const lottieContainer = this.spaceshipLottie.getContainerElement();
+    if (lottieContainer) {
+      gsap.killTweensOf(lottieContainer);
+    }
+
     this.bubbleEffect.destroy();
     this.spaceshipLottie.destroy();
     super.destroy({
@@ -643,7 +653,11 @@ export class CrashGameScreen extends Container {
       duration: 2,
       ease: "power2.inOut",
       transformOrigin: "center center",
-      onUpdate: function () {
+      onUpdate: function (this: gsap.core.Tween) {
+        // Guard: the screen or lottie may have been destroyed while this
+        // 2-second tween is in flight. Accessing .style on a removed element
+        // would throw and crash the webview JS context.
+        if (!lottieContainer.isConnected) return;
         const progress = this.progress();
         const arc = Math.sin(progress * Math.PI) * 100;
         const currentLeft = startX + (endX - startX) * progress + arc;

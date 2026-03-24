@@ -17,6 +17,7 @@ export const CRASH_ASSETS = {
   TRAIL: "trail",
   HEAT_ICON: "heat_icon",
   COOL_ICON: "cool_icon",
+  SPACE_STARS: "space_stars",
 } as const;
 
 export const CRASH_LAYOUT = {
