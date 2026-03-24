@@ -16,7 +16,6 @@ import {
   type CrashPlayerActionPayload,
   type RoundOverPayload,
   type CrashActionAckResponse,
-  type HeatZone,
 } from "../types/crashGame";
 import { Logger } from "../utils/logger";
 import { SpaceBackground } from "../ui/SpaceBackground";
@@ -45,11 +44,9 @@ import {
 /** Padding from screen edge for top-left logo and top-right cross button. */
 const TOP_EDGE_PADDING = 20;
 
-const VELOCITY_SCROLL = {
-  MIN_VELOCITY: 1.0,
-  MAX_VELOCITY: 10.0,
-  MIN_SCROLL_SPEED: 0.5,
-  MAX_SCROLL_SPEED: 6.0,
+const HEAT_SCROLL = {
+  MAX_SPEED: 10,
+  K: 3,
 } as const;
 
 const CRITICAL_SHAKE = {
@@ -114,7 +111,6 @@ export class CrashGameScreen extends Container {
   private bubbleEffect: ActionBubbleEffect;
   public spaceshipLottie: LottiePlayer;
 
-  private prevHeatZone: HeatZone = "green";
   private logoShakeTl: gsap.core.Timeline | null = null;
   private bgShakeTl: gsap.core.Timeline | null = null;
   private logoBaseX = TOP_EDGE_PADDING;
@@ -751,17 +747,24 @@ export class CrashGameScreen extends Container {
     window.removeEventListener("message", this.handleAppMessage);
   }
 
+  /**
+   * Triggers shake effect when heat >= 90% to signal imminent danger.
+   * The shake applies to both the logo and background for maximum impact.
+   */
   private syncShakeEffect(): void {
-    const zone = this.state.heatZone;
-    if (zone === this.prevHeatZone) return;
+    const heat = this.state.heat;
+    const shouldShake = heat >= 90;
+    const isShaking = this.bgShakeTl !== null;
 
-    const wasCritical = this.prevHeatZone === "critical";
-    const isCritical = zone === "critical";
-    this.prevHeatZone = zone;
-
-    if (isCritical && !wasCritical) {
+    if (shouldShake && !isShaking) {
+      Logger.info(
+        `[CrashGameScreen] 🔥 Starting shake effect at heat=${heat.toFixed(1)}%`,
+      );
       this.startShakeEffect();
-    } else if (!isCritical && wasCritical) {
+    } else if (!shouldShake && isShaking) {
+      Logger.info(
+        `[CrashGameScreen] ✅ Stopping shake effect at heat=${heat.toFixed(1)}%`,
+      );
       this.stopShakeEffect();
     }
   }
@@ -849,17 +852,49 @@ export class CrashGameScreen extends Container {
       Logger.info(
         "CrashGameScreen: Triggered ship blast animation (roundOver)",
       );
+
+      // Fade trail quickly on blast
+      if (this.trail && !this.trail.destroyed) {
+        Logger.info(`[CrashGameScreen] 💥 Blast - fading trail quickly`);
+        gsap.to(this.trail, {
+          alpha: 0,
+          duration: 0.4,
+          ease: "power2.in",
+        });
+      }
     }
   }
 
+  /**
+   * Updates background scroll speed based on heat using an exponential curve.
+   * The relationship is exponential — slow at low heat, dramatic surge at high heat.
+   *
+   * Expected values at K=3, MAX_SPEED=10:
+   * - Heat 0%:   speed = 0.00
+   * - Heat 25%:  speed ≈ 1.27
+   * - Heat 50%:  speed ≈ 3.16
+   * - Heat 75%:  speed ≈ 6.20
+   * - Heat 90%:  speed ≈ 8.57
+   * - Heat 100%: speed = 10.00
+   */
   private syncScrollSpeed(): void {
-    const { MIN_VELOCITY, MAX_VELOCITY, MIN_SCROLL_SPEED, MAX_SCROLL_SPEED } =
-      VELOCITY_SCROLL;
-    const normalized =
-      (this.state.velocity - MIN_VELOCITY) / (MAX_VELOCITY - MIN_VELOCITY);
-    const clamped = Math.max(0, Math.min(1, normalized));
-    const speed =
-      MIN_SCROLL_SPEED + clamped * (MAX_SCROLL_SPEED - MIN_SCROLL_SPEED);
+    const { MAX_SPEED, K } = HEAT_SCROLL;
+    const heat = this.state.heat;
+
+    let speed: number;
+    if (heat <= 0) {
+      speed = 0;
+    } else if (heat >= 100) {
+      speed = MAX_SPEED;
+    } else {
+      speed =
+        (MAX_SPEED * (Math.exp((K * heat) / 100) - 1)) / (Math.exp(K) - 1);
+    }
+
+    Logger.info(
+      `[CrashGameScreen] Heat-based scroll: heat=${heat.toFixed(1)}%, speed=${speed.toFixed(2)}`,
+    );
+
     this.background.setScrollSpeed(speed);
   }
 

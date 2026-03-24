@@ -28,7 +28,7 @@ switch (import.meta.env.VITE_GAME_ENVIRONMENT) {
 
   case GAME_ENVIRONMENT.PRODUCTION:
     BASE_URL = "https://api.toaststudios.io";
-    WEBSOCKET_URL = "https://api-blackjack-tournament.toaststudios.io";
+    WEBSOCKET_URL = "https://api-crash.toaststudios.io";
     LOG_UPLOAD_URL = "https://cdv9p0l9h0.execute-api.ap-south-1.amazonaws.com";
     environment = GAME_ENVIRONMENT.PRODUCTION;
     WEB_VERSION = import.meta.env.VITE_WEB_VERSION;

@@ -3,12 +3,14 @@ import { FONTS, FONT_WEIGHTS } from "../../constants/typography";
 import { CRASH_ASSETS } from "../../constants/crashLayout";
 
 const PLAYER_BOX = {
-  WIDTH: 100,
+  WIDTH: 90,
   HEIGHT: 20,
   /** Horizontal padding from background edge so text stays inside */
   PADDING_H: 20,
-  ALIVE_COLOR: 0x00ff88,
-  DIPPED_COLOR: 0xffaa00,
+  /** Global horizontal offset for both text groups */
+  TEXT_SHIFT_X: -16,
+  ALIVE_COLOR: 0x5ee09d,
+  DIPPED_COLOR: 0xffcc00,
   TEXT_COLOR: 0xffffff,
 } as const;
 
@@ -23,8 +25,10 @@ export interface PlayerBoxOptions {
  */
 export class PlayerBox extends Container {
   private background: Sprite;
-  private aliveText: Text;
-  private dippedText: Text;
+  private aliveCountText: Text;
+  private aliveLabelText: Text;
+  private dippedCountText: Text;
+  private dippedLabelText: Text;
 
   private aliveCount: number;
   private dippedCount: number;
@@ -43,35 +47,67 @@ export class PlayerBox extends Container {
 
     const halfW = PLAYER_BOX.WIDTH / 2;
 
-    this.aliveText = new Text({
-      text: this.formatAliveText(this.aliveCount),
+    this.aliveCountText = new Text({
+      text: String(this.aliveCount),
       style: {
-        fontFamily: FONTS.SECONDARY,
+        fontFamily: FONTS.THIRD,
         fontSize: 8,
         fontWeight: FONT_WEIGHTS.MEDIUM,
-        fill: PLAYER_BOX.TEXT_COLOR,
+        fill: PLAYER_BOX.ALIVE_COLOR,
         align: "left",
       },
     });
-    this.aliveText.anchor.set(0.5);
-    this.aliveText.x = -halfW + PLAYER_BOX.PADDING_H;
-    this.aliveText.y = 0;
-    this.addChild(this.aliveText);
+    this.aliveCountText.anchor.set(0, 0.5);
+    this.aliveCountText.x =
+      -halfW + PLAYER_BOX.PADDING_H + PLAYER_BOX.TEXT_SHIFT_X;
+    this.aliveCountText.y = 0;
+    this.addChild(this.aliveCountText);
 
-    this.dippedText = new Text({
-      text: this.formatDippedText(this.dippedCount),
+    this.aliveLabelText = new Text({
+      text: " Alive",
       style: {
-        fontFamily: FONTS.SECONDARY,
+        fontFamily: FONTS.THIRD,
         fontSize: 8,
         fontWeight: FONT_WEIGHTS.MEDIUM,
         fill: PLAYER_BOX.TEXT_COLOR,
         align: "left",
       },
     });
-    this.dippedText.anchor.set(0.5);
-    this.dippedText.x = halfW - PLAYER_BOX.PADDING_H;
-    this.dippedText.y = 0;
-    this.addChild(this.dippedText);
+    this.aliveLabelText.anchor.set(0, 0.5);
+    this.aliveLabelText.x = this.aliveCountText.x + this.aliveCountText.width;
+    this.aliveLabelText.y = 0;
+    this.addChild(this.aliveLabelText);
+
+    this.dippedCountText = new Text({
+      text: String(this.dippedCount),
+      style: {
+        fontFamily: FONTS.THIRD,
+        fontSize: 8,
+        fontWeight: FONT_WEIGHTS.MEDIUM,
+        fill: PLAYER_BOX.DIPPED_COLOR,
+        align: "left",
+      },
+    });
+    this.dippedCountText.anchor.set(1, 0.5);
+    this.dippedCountText.x =
+      halfW - PLAYER_BOX.PADDING_H + PLAYER_BOX.TEXT_SHIFT_X;
+    this.dippedCountText.y = 0;
+    this.addChild(this.dippedCountText);
+
+    this.dippedLabelText = new Text({
+      text: " Dipped",
+      style: {
+        fontFamily: FONTS.THIRD,
+        fontSize: 8,
+        fontWeight: FONT_WEIGHTS.MEDIUM,
+        fill: PLAYER_BOX.TEXT_COLOR,
+        align: "left",
+      },
+    });
+    this.dippedLabelText.anchor.set(0, 0.5);
+    this.dippedLabelText.x = this.dippedCountText.x;
+    this.dippedLabelText.y = 0;
+    this.addChild(this.dippedLabelText);
   }
 
   /**
@@ -80,7 +116,8 @@ export class PlayerBox extends Container {
   public setAliveCount(count: number): void {
     if (this.destroyed) return;
     this.aliveCount = count;
-    this.aliveText.text = this.formatAliveText(count);
+    this.aliveCountText.text = String(count);
+    this.aliveLabelText.x = this.aliveCountText.x + this.aliveCountText.width;
   }
 
   /**
@@ -89,7 +126,7 @@ export class PlayerBox extends Container {
   public setDippedCount(count: number): void {
     if (this.destroyed) return;
     this.dippedCount = count;
-    this.dippedText.text = this.formatDippedText(count);
+    this.dippedCountText.text = String(count);
   }
 
   /**
@@ -112,14 +149,6 @@ export class PlayerBox extends Container {
    */
   public getDippedCount(): number {
     return this.dippedCount;
-  }
-
-  private formatAliveText(count: number): string {
-    return `${count} Alive`;
-  }
-
-  private formatDippedText(count: number): string {
-    return `${count} Dipped`;
   }
 
   public destroy(options?: DestroyOptions): void {

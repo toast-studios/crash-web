@@ -486,11 +486,25 @@ delayCall(10, () => {
   init()
     .then(() =>
       navigation.showScreen(CrashGameScreen, {
-        gameStartTime: Date.now(),
-        initialHeat: 0,
-        initialVelocity: 1.0,
-        coolMaxUses: 3,
-        boostMaxUses: 3,
+        matchId: "test-crash-match",
+        isReconnection: false,
+        gameConfig: {
+          coolMaxUses: 3,
+          boostMaxUses: 3,
+          coolReductionGreen: 4,
+          coolReductionYellow: 3,
+          coolReductionRed: 2,
+          coolReductionCritical: 1,
+          boostIncreaseGreen: 2,
+          boostIncreaseYellow: 3,
+          boostIncreaseRed: 4,
+          boostIncreaseCritical: 5,
+        },
+        players: [
+          { gameUserId: "p1", username: "RadiantAssassin", status: "alive" },
+          { gameUserId: "p2", username: "ZoeNXo", status: "alive" },
+          { gameUserId: "p3", username: "AshleyDPro", status: "alive" },
+        ],
       }),
     )
     .then(() => {

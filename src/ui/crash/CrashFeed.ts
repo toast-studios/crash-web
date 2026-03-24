@@ -126,7 +126,7 @@ export class CrashFeed extends Container {
     const nameText = new Text({
       text: truncatedName,
       style: {
-        fontFamily: FONTS.SECONDARY,
+        fontFamily: FONTS.PRIMARY,
         fontSize: FEED_LAYOUT.FONT_SIZE,
         fontWeight: FONT_WEIGHTS.REGULAR,
         fill: 0xffffff,
@@ -166,7 +166,7 @@ export class CrashFeed extends Container {
         const prizeText = new Text({
           text: `$${prize}`,
           style: {
-            fontFamily: FONTS.SECONDARY,
+            fontFamily: FONTS.PRIMARY,
             fontSize: FEED_LAYOUT.PRIZE_FONT_SIZE,
             fontWeight: FONT_WEIGHTS.BOLD,
             fill: FEED_COLORS.exit,

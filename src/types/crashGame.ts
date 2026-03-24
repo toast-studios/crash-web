@@ -87,6 +87,7 @@ export interface GameStateSyncPayload {
   heatZone: HeatZone;
   phase: CrashGamePhase;
   serverTime: number;
+  shipSpeed: number;
   players: Array<{
     id: string;
     name: string;
