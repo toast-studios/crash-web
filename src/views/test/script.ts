@@ -640,6 +640,31 @@ delayCall(10, () => {
       console.log("\n=== Heat Zone Gradient Demo ===");
       console.log("Initial: GREEN zone (0x00cc66 → 0x00ff88)");
 
+      // Test bubble animations
+      console.log("\n=== Bubble Animation Tests ===");
+      console.log("Heat icon animation will trigger in 4 seconds...");
+      console.log("Cool icon animation will trigger in 8 seconds...");
+
+      // Trigger heat icon animation after 4 seconds
+      setTimeout(() => {
+        const currentScreen =
+          navigation.getCurrentScreen() as CrashGameScreen | null;
+        if (currentScreen && (currentScreen as any).bubbleEffect) {
+          console.log("🔥 Triggering HEAT bubble animation!");
+          (currentScreen as any).bubbleEffect.trigger("heat");
+        }
+      }, 4000);
+
+      // Trigger cool icon animation after 8 seconds
+      setTimeout(() => {
+        const currentScreen =
+          navigation.getCurrentScreen() as CrashGameScreen | null;
+        if (currentScreen && (currentScreen as any).bubbleEffect) {
+          console.log("❄️ Triggering COOL bubble animation!");
+          (currentScreen as any).bubbleEffect.trigger("cool");
+        }
+      }, 8000);
+
       // Demo: cycle through heat zones to show gradient changes
       // setTimeout(() => {
       //   const currentScreen =

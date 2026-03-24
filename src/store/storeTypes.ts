@@ -207,13 +207,11 @@ export type {
   CrashGameConfig,
   GameTableInfoPayload,
   CrashMatchFoundPayload,
-  CountdownPayload,
   GameStartPayload,
   GameStateSyncPayload,
   CrashPlayerActionPayload,
   RoundOverPayload,
   CrashErrorPayload,
-  JoinCrashGamePayload,
   CrashActionPayload,
   CrashActionAckResponse,
 } from "../types/crashGame";

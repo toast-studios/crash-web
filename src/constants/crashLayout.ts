@@ -15,6 +15,8 @@ export const CRASH_ASSETS = {
   NO_OF_PLAYERS_BG: "no_of_players_bg",
   CASH_OUT_AMOUNT_CONTAINER: "cash_out_amount_container",
   TRAIL: "trail",
+  HEAT_ICON: "heat_icon",
+  COOL_ICON: "cool_icon",
 } as const;
 
 export const CRASH_LAYOUT = {
@@ -42,6 +44,8 @@ export const CRASH_LAYOUT = {
   BUTTON_PRESS_SCALE_RATIO: 0.92,
   BUTTON_PRESS_DURATION: 0.1,
   BUTTON_RELEASE_DURATION: 0.2,
+
+  SPACESHIP_ROTATION: -35,
 } as const;
 
 export const CRASH_LOTTIE_PATHS = {

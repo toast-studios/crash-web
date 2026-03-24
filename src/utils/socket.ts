@@ -32,7 +32,6 @@ function getCurrentScreenType(): "lobby" | "game" | "matchmaking" | "other" {
     screenName === "GameScreen" ||
     screenName === "TournamentGameScreen" ||
     screenName === "CrashGameScreen" ||
-    screenName === "CountdownScreen" ||
     screenName === "CrashResultScreen"
   ) {
     return "game";

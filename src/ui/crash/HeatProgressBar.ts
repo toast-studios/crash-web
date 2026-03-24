@@ -55,10 +55,10 @@ const HEAT_ZONE_GRADIENTS: Record<
   HeatZone,
   { left: number; right: number; shadow: number }
 > = {
-  green: { left: 0x00cc66, right: 0x00ff88, shadow: 0x004d26 },
-  yellow: { left: 0xff8800, right: 0xffcc00, shadow: 0xaa3d00 },
-  red: { left: 0xff4400, right: 0xff6600, shadow: 0x991d00 },
-  critical: { left: 0xff0000, right: 0xff4444, shadow: 0x880000 },
+  green: { left: 0x00ff88, right: 0x00cc66, shadow: 0x004d26 },
+  yellow: { left: 0xffcc00, right: 0xff8800, shadow: 0xaa3d00 },
+  red: { left: 0xff6600, right: 0xff4400, shadow: 0x991d00 },
+  critical: { left: 0xff4444, right: 0xff0000, shadow: 0x880000 },
 } as const;
 
 /**
@@ -201,7 +201,7 @@ export class HeatProgressBar extends Container {
     this.percentageText.anchor.set(0, 0.5);
     this.percentageText.x = CRASH_LAYOUT.PERCENTAGE_PADDING_LEFT;
     this.percentageText.y = 0;
-    this.addChild(this.percentageText);
+    // this.addChild(this.percentageText);
 
     // --- Boom box + label (right of bar, above bar layers in z-order) ---
     this.boomBoxGroup = new Container();

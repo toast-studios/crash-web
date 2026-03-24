@@ -1,0 +1,230 @@
+---
+description: White-label partner system architecture using Strategy pattern
+alwaysApply: true
+---
+
+# Partner / White-Label Architecture
+
+This game supports multiple white-label partners (Ember, GamerSaloon, Sparket, Kaboom, FreeWin, BlockHead, Butr, MidoLotto, Speed, Toast, US). Each partner has different behavior for game-end flow, lobby layout, currency display, asset themes, and navigation.
+
+Currently there are **77+ `if (CURRENT_PARTNER === PARTNER_ID.xx)` branches** scattered across 19+ files. This is unmaintainable — every new partner requires modifying dozens of existing files.
+
+---
+
+## The Strategy Pattern
+
+All partner-varying behavior must be encapsulated behind a `PartnerBehavior` interface. Each partner provides one implementation. Shared code never checks `CURRENT_PARTNER` directly.
+
+### Step 1: Define the Interface
+
+```ts
+// partners/PartnerBehavior.ts
+export interface PartnerBehavior {
+  readonly partnerId: string;
+
+  // Game lifecycle
+  onGameEnd(context: GameEndContext): void;
+  onMatchResult(context: MatchResultContext): void;
+  shouldShowRematch(): boolean;
+  shouldShowLeaderboard(): boolean;
+
+  // Navigation
+  getPostGameAction(): "lobby" | "disconnect" | "result";
+  getLobbyScreenClass(): typeof Container;
+
+  // Currency
+  mapCurrencyCode(code: string): string;
+  getDefaultCurrency(): string;
+
+  // Assets & theming
+  getAssetBundleSuffix(): string;
+  getDefaultAvatarUrl(): string;
+
+  // Feature flags
+  supportsWallet(): boolean;
+  supportsPracticeMode(): boolean;
+  supportsRequeue(): boolean;
+}
+```
+
+### Step 2: Default Implementation
+
+```ts
+// partners/DefaultPartnerBehavior.ts
+export class DefaultPartnerBehavior implements PartnerBehavior {
+  readonly partnerId: string;
+
+  constructor(partnerId: string, private config: PartnerConfig) {
+    this.partnerId = partnerId;
+  }
+
+  onGameEnd(context: GameEndContext): void {
+    context.navigation.goBackToLobby(true);
+  }
+
+  shouldShowRematch(): boolean { return true; }
+  shouldShowLeaderboard(): boolean { return false; }
+  getPostGameAction(): "lobby" | "disconnect" | "result" { return "lobby"; }
+  mapCurrencyCode(code: string): string { return code; }
+
+  // ... sensible defaults for all methods
+}
+```
+
+### Step 3: Partner-Specific Overrides (Only What Differs)
+
+```ts
+// partners/EmberPartnerBehavior.ts
+export class EmberPartnerBehavior extends DefaultPartnerBehavior {
+  mapCurrencyCode(code: string): string {
+    if (code === "EMT") return CURRENCY_CODES.PLAY_COINS;
+    if (code === "SATS") return CURRENCY_CODES.PLAY_CASH;
+    return code;
+  }
+
+  getLobbyScreenClass() { return EmberLobby; }
+  supportsWallet(): boolean { return true; }
+}
+```
+
+```ts
+// partners/ButrPartnerBehavior.ts
+export class ButrPartnerBehavior extends DefaultPartnerBehavior {
+  onGameEnd(context: GameEndContext): void {
+    context.socketManager.disconnect();
+    // Butr disconnects instead of navigating back
+  }
+
+  getPostGameAction(): "disconnect" { return "disconnect"; }
+  shouldShowRematch(): boolean { return false; }
+}
+```
+
+### Step 4: Registry and Factory
+
+```ts
+// partners/partnerRegistry.ts
+const partnerBehaviors = new Map<string, PartnerBehavior>();
+
+export function registerPartner(behavior: PartnerBehavior) {
+  partnerBehaviors.set(behavior.partnerId, behavior);
+}
+
+export function getPartnerBehavior(partnerId: string): PartnerBehavior {
+  const behavior = partnerBehaviors.get(partnerId);
+  if (!behavior) {
+    throw new Error(`No behavior registered for partner: ${partnerId}`);
+  }
+  return behavior;
+}
+
+// Register all at app startup
+registerPartner(new DefaultPartnerBehavior(PARTNER_ID.ts, PARTNER_SPECIFIC_CONFIG[PARTNER_ID.ts]));
+registerPartner(new EmberPartnerBehavior(PARTNER_ID.em, PARTNER_SPECIFIC_CONFIG[PARTNER_ID.em]));
+registerPartner(new ButrPartnerBehavior(PARTNER_ID.bt, PARTNER_SPECIFIC_CONFIG[PARTNER_ID.bt]));
+// ... etc
+```
+
+### Step 5: Usage in Shared Code
+
+```ts
+// GOOD — partner behavior is polymorphic, no branching in shared code
+class GameScreen extends Container {
+  private partner: PartnerBehavior;
+
+  constructor(deps: GameScreenDeps) {
+    super();
+    this.partner = deps.partnerBehavior;
+  }
+
+  endGameHandler(result: GameResult) {
+    this.partner.onGameEnd({ result, navigation: this.deps.navigator });
+  }
+}
+```
+
+---
+
+## Rules
+
+### Never Add `CURRENT_PARTNER ===` Checks to Shared Code
+
+This is the most important rule. **Zero tolerance.** If you need partner-specific behavior:
+
+1. Add a method to `PartnerBehavior` interface
+2. Implement default in `DefaultPartnerBehavior`
+3. Override in the specific partner class
+4. Call through the interface in shared code
+
+### `PARTNER_SPECIFIC_CONFIG` Remains for Static Data
+
+The existing config object in `network/constants.ts` is fine for static configuration (URLs, feature flags, display names). But **behavioral branching** (what happens on game end, how navigation flows, how currencies map) must go through the Strategy pattern, not `if/else` chains reading the config.
+
+```ts
+// Static config — OK
+const config = PARTNER_SPECIFIC_CONFIG[CURRENT_PARTNER];
+const apiUrl = config.apiBaseUrl;
+const showWallet = config.features.wallet;
+
+// Behavioral branching — must use Strategy
+// BAD:  if (CURRENT_PARTNER === PARTNER_ID.em) { mapCurrency(...); }
+// GOOD: partnerBehavior.mapCurrencyCode(code);
+```
+
+### Lobby Factory Pattern Is Correct — Extend It
+
+The existing `lobbyScreenFactory.ts` already selects the right lobby screen class per partner. This is the right pattern. Extend it to all partner-varying concerns:
+
+- Game end behavior
+- Result screen layout
+- Currency display logic
+- Requeue/rematch availability
+- Post-game navigation
+
+### New Partner Checklist
+
+Adding a new partner should require ONLY:
+
+1. Create `partners/NewPartnerBehavior.ts` extending `DefaultPartnerBehavior`
+2. Override only the methods that differ from default
+3. Add one line to `partnerRegistry.ts` to register it
+4. Add static config to `PARTNER_SPECIFIC_CONFIG`
+5. Add raw assets to `raw-assets-newpartner/`
+
+It must NOT require modifying `GameScreen`, `TournamentGameScreen`, `PhaseOne`, `PhaseTwo`, `ResultScreen`, `Navigation`, or any other shared file.
+
+---
+
+## File Structure
+
+```
+src/partners/
+├── PartnerBehavior.ts           # Interface definition
+├── DefaultPartnerBehavior.ts    # Base implementation with sensible defaults
+├── partnerRegistry.ts           # Map + factory function
+├── EmberPartnerBehavior.ts
+├── GamerSaloonPartnerBehavior.ts
+├── SparketPartnerBehavior.ts
+├── ButrPartnerBehavior.ts
+├── BlockHeadPartnerBehavior.ts
+├── KaboomPartnerBehavior.ts
+├── FreeWinPartnerBehavior.ts
+├── MidoLottoPartnerBehavior.ts
+├── SpeedPartnerBehavior.ts
+├── ToastPartnerBehavior.ts
+└── USPartnerBehavior.ts
+```
+
+---
+
+## Migration Path
+
+Eliminating 77+ branches is a gradual process. When touching a file that contains `CURRENT_PARTNER ===` checks:
+
+1. Identify the branching behavior
+2. Add the corresponding method to `PartnerBehavior` if it doesn't exist
+3. Implement it in the relevant partner classes
+4. Replace the `if/else` chain with a call through the interface
+5. Delete the old branch
+
+Do not attempt to migrate all 77 branches at once. Fix them file-by-file as you touch the code.

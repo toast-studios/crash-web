@@ -1,0 +1,317 @@
+---
+description: TypeScript strict type safety rules — zero any, no escape hatches
+alwaysApply: true
+---
+
+# TypeScript Type Safety
+
+Zero tolerance for type safety escape hatches. Every violation found in this project eroded trust in the type system and hid real bugs.
+
+---
+
+## Zero `any`
+
+### Rule
+Never use `any` — not in variable types, function parameters, return types, generics, or type assertions.
+
+### Forbidden Patterns
+
+```ts
+// BAD — file-wide eslint disable
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+// BAD — any in function parameter
+function handleEvent(data: any) { ... }
+
+// BAD — any in type assertion
+const result = value as any;
+
+// BAD — any in generic
+const items: Array<any> = [];
+```
+
+### What to Use Instead
+
+| Instead of `any` | Use |
+|---|---|
+| Unknown data from external source | `unknown` + type guard |
+| Flexible function parameter | Generic `<T>` with constraint |
+| JSON parse result | `unknown` then validate |
+| Event handler data | Typed event map (see `state-and-events.mdc`) |
+| Third-party library without types | Write a `.d.ts` declaration |
+
+### Type Guard Pattern
+
+```ts
+// GOOD — unknown + runtime validation
+function handleSocketEvent(data: unknown): void {
+  if (!isValidTurnInfo(data)) {
+    Logger.error("Invalid turn info payload", data);
+    return;
+  }
+  // data is now TurnInfo
+  processTurnInfo(data);
+}
+
+function isValidTurnInfo(data: unknown): data is TurnInfo {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "turnId" in data &&
+    "playerId" in data
+  );
+}
+```
+
+---
+
+## No Double-Cast (`as unknown as`)
+
+### Rule
+`as unknown as T` completely bypasses TypeScript's type system. It is **always wrong** — it means the actual runtime type doesn't match the declared type. Fix the underlying mismatch instead.
+
+### Forbidden
+
+```ts
+// BAD — found in eventListeners.ts
+const lobbyId = (data.lobbyDetails as unknown as { lobbyId: string }).lobbyId;
+
+// BAD — found in ResultScreen.ts
+lobbyDetails: undefined as unknown as any;
+```
+
+### Fix
+
+```ts
+// GOOD — declare the proper type on the data
+interface GameTableInfoPayload {
+  lobbyDetails: { lobbyId: string; /* ... */ };
+}
+
+// Or if the field is truly optional:
+const lobbyId = data.lobbyDetails?.lobbyId;
+```
+
+If the server sends data in an unexpected shape, fix the type definition to match reality. If the shape genuinely varies, use a discriminated union.
+
+---
+
+## No `@ts-ignore` or `@ts-expect-error`
+
+### Rule
+If TypeScript reports a type error, the type is wrong. Fix the type, don't silence the compiler.
+
+### Forbidden
+
+```ts
+// BAD — found in NewMatchMakingScreen.ts
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+someExpression.property;
+```
+
+### Exception
+`@ts-expect-error` is allowed ONLY in test files where you intentionally test invalid inputs. It must include a comment explaining what error is expected:
+
+```ts
+// In tests only:
+// @ts-expect-error — testing behavior when invalid type is passed
+handleTurnInfo("not a valid payload");
+```
+
+---
+
+## No `window as any`
+
+### Rule
+Never stash global state on `window` with type-unsafe access. If you must use `window` for global variables (webview bridge, debug utilities), declare proper types.
+
+### Forbidden
+
+```ts
+// BAD — found in game.ts
+let sessionId = (window as any).sessionId;
+(window as any).sessionId = email;
+
+// BAD — found in app.init.ts
+(globalThis as any).__PIXI_STAGE__ = app.stage;
+```
+
+### Fix — Augment the Global Type
+
+```ts
+// types/global.d.ts
+declare global {
+  interface Window {
+    sessionId?: string;
+    __PIXI_STAGE__?: import("pixi.js").Container;
+    __PIXI_RENDERER__?: import("pixi.js").Renderer;
+    DebugUtils?: typeof import("../debug").DebugUtils;
+  }
+}
+
+export {};
+```
+
+Now access is type-safe:
+
+```ts
+// GOOD — properly typed
+window.__PIXI_STAGE__ = app.stage;
+const sessionId = window.sessionId;
+```
+
+---
+
+## Strict Event Types
+
+All events (socket, DOM custom events, postMessage) must have typed payloads.
+
+### Socket Events
+See `state-and-events.mdc` for the full `ServerToClientEvents` / `ClientToServerEvents` pattern.
+
+### DOM `postMessage` / `appMessage`
+
+```ts
+// types/appMessages.d.ts
+interface AppMessage {
+  type: "NAVIGATE_BACK" | "SET_VOLUME" | "AUTH_TOKEN" | "DEPOSIT_RESULT";
+  payload: NavigateBackPayload | SetVolumePayload | AuthTokenPayload | DepositResultPayload;
+}
+
+// Type-safe handler
+function handleAppMessage(event: MessageEvent<AppMessage>) {
+  switch (event.data.type) {
+    case "NAVIGATE_BACK":
+      // event.data.payload is narrowed to NavigateBackPayload
+      break;
+    case "SET_VOLUME":
+      // event.data.payload is narrowed to SetVolumePayload
+      break;
+  }
+}
+```
+
+### Custom Event Emitters
+
+If using a custom event emitter (e.g., for game events), type the event map:
+
+```ts
+interface GameEvents {
+  turnStart: { turnId: string; playerId: string };
+  cardDealt: { card: CardData; position: number };
+  phaseChange: { from: GAME_STATE; to: GAME_STATE };
+}
+
+class TypedEmitter<TEvents extends Record<string, unknown>> {
+  on<K extends keyof TEvents>(event: K, handler: (data: TEvents[K]) => void): void;
+  off<K extends keyof TEvents>(event: K, handler: (data: TEvents[K]) => void): void;
+  emit<K extends keyof TEvents>(event: K, data: TEvents[K]): void;
+}
+```
+
+---
+
+## No `alert()` in Production
+
+### Rule
+Never use `alert()` for user-facing messages. Use the in-game popup system (`InfoPopup` via `navigation.presentPopup`).
+
+### Forbidden
+
+```ts
+// BAD — found in main.ts
+alert("Error initializing app : " + (error as Error).message);
+```
+
+### Fix
+
+```ts
+// GOOD — use the game's popup system
+navigation.presentPopup(InfoPopup, {
+  message: "Failed to initialize the game. Please try again.",
+  showOkButton: true,
+  onOkPress: () => window.location.reload(),
+});
+```
+
+If the error occurs before the popup system is initialized, log to Sentry and show a minimal HTML error overlay.
+
+---
+
+## API Response Typing
+
+All API responses from `ApiClient` must have explicit return types. No implicit `any` from `axios.get()`.
+
+```ts
+// BAD
+async getActivePoolInfo() {
+  const response = await this.instance.get("/pool/active");
+  return response.data; // type: any
+}
+
+// GOOD
+interface ActivePoolInfo {
+  poolId: string;
+  entryFee: number;
+  playerCount: number;
+}
+
+async getActivePoolInfo(): Promise<ActivePoolInfo> {
+  const response = await this.instance.get<ActivePoolInfo>("/pool/active");
+  return response.data; // type: ActivePoolInfo
+}
+```
+
+---
+
+## Enum Safety
+
+### Rules
+- Use `const enum` or `as const` objects for values that don't need runtime reverse-mapping.
+- Always handle the `default` case in switch statements on enums — either throw or log.
+- Never compare enums with loose equality (`==`). Use strict equality (`===`).
+
+```ts
+// BAD
+if (CURRENT_PARTNER == PARTNER_ID.gs) { ... }
+
+// GOOD
+if (CURRENT_PARTNER === PARTNER_ID.gs) { ... }
+```
+
+### Exhaustive Switch
+
+```ts
+function getActionLabel(action: ALLOW_ACTIONS): string {
+  switch (action) {
+    case ALLOW_ACTIONS.HIT: return "Hit";
+    case ALLOW_ACTIONS.STAND: return "Stand";
+    case ALLOW_ACTIONS.SPLIT: return "Split";
+    default: {
+      const _exhaustive: never = action;
+      throw new Error(`Unhandled action: ${_exhaustive}`);
+    }
+  }
+}
+```
+
+---
+
+## eslint-disable Rules
+
+### Forbidden Directives
+These eslint-disable comments are **never allowed** in production code:
+
+- `/* eslint-disable @typescript-eslint/no-explicit-any */`
+- `/* eslint-disable @typescript-eslint/ban-ts-comment */`
+- `// eslint-disable-next-line @typescript-eslint/no-non-null-assertion`
+
+### Allowed (With Justification Comment)
+Single-line disables for non-type-safety rules are acceptable when accompanied by a comment explaining why:
+
+```ts
+// Pixi's destroy signature accepts boolean | DestroyOptions, ESLint wrongly flags the union
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+destroy(options?: boolean | DestroyOptions) { ... }
+```
