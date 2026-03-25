@@ -168,6 +168,13 @@ class SFX {
     }
   }
 
+  /** Stop a specific sound effect alias (including looped instances). */
+  public stop(alias: string) {
+    const targetSound = sound.find(alias);
+    if (!targetSound) return;
+    targetSound.stop();
+  }
+
   /** Set sound effects volume */
   public getVolume() {
     return this.volume;

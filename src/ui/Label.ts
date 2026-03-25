@@ -1,7 +1,8 @@
 import { TextStyleOptions, Text, TextStyle } from "pixi.js";
+import { FONTS } from "../constants/typography";
 
 const defaultLabelStyle: Partial<TextStyleOptions> = {
-  fontFamily: "Arial Rounded MT Bold",
+  fontFamily: FONTS.PRIMARY,
   align: "center",
 };
 

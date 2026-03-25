@@ -5,6 +5,7 @@ import { Label } from "../ui/Label";
 import { sfx } from "../utils/audio";
 import { LoadingCardAnimation } from "../ui/LoadingCardAnimation";
 import { app } from "../app";
+import { FONT_WEIGHTS } from "../constants/typography";
 
 export class InfoPopup extends Container {
   private bg: Sprite;
@@ -27,7 +28,7 @@ export class InfoPopup extends Container {
     showCancelButton = false,
     skipAnimation = false,
     backgroundColor = 0x0a0025,
-    textColor = 0x000000,
+    textColor = 0x94622a,
   }: {
     message: string;
     showLoader?: boolean;
@@ -53,9 +54,11 @@ export class InfoPopup extends Container {
 
     this.messageLabel = new Label(message, {
       fill: 0xffffff,
-      fontSize: 25,
+      fontSize: 30,
       wordWrap: true,
       wordWrapWidth: 350,
+      fontWeight: FONT_WEIGHTS.BOLD,
+      fontStyle: "italic",
     });
     this.messageLabel.x = app.screen.width / 2;
 
@@ -72,15 +75,17 @@ export class InfoPopup extends Container {
     if (showOkButton) {
       this.messageLabel.y =
         app.screen.height / 2 - this.messageLabel.height / 2;
-      this.okButton = Sprite.from("common-action-button-bg");
+      this.okButton = Sprite.from("primary_icon_bg");
       this.okButton.interactive = true;
       // this.okButton.cursor = "pointer";
-      this.okButton.width = 126;
-      this.okButton.height = 56;
+      this.okButton.width = 250;
+      this.okButton.height = 250;
 
       const okButtonLabel = new Label(okButtonText || "OK", {
         fill: textColor,
-        fontSize: 28,
+        fontSize: 50,
+        fontWeight: FONT_WEIGHTS.BOLD,
+        fontStyle: "italic",
       });
       // okButtonLabel.anchor.set(0.5);
       this.okButton.addChild(okButtonLabel);
@@ -95,14 +100,16 @@ export class InfoPopup extends Container {
     if (showCancelButton) {
       this.messageLabel.y =
         app.screen.height / 2 - this.messageLabel.height / 2;
-      this.cancelButton = Sprite.from("common-action-button-bg");
+      this.cancelButton = Sprite.from("secondary_icon_bg");
       this.cancelButton.interactive = true;
       // this.okButton.cursor = "pointer";
-      this.cancelButton.width = 126;
-      this.cancelButton.height = 56;
+      this.cancelButton.width = 250;
+      this.cancelButton.height = 250;
       const cancelButtonLabel = new Label(cancelButtonText || "Cancel", {
-        fill: textColor,
-        fontSize: 28,
+        fill: 0x473681,
+        fontSize: 50,
+        fontWeight: FONT_WEIGHTS.BOLD,
+        fontStyle: "italic",
       });
       // okButtonLabel.anchor.set(0.5);
       this.cancelButton.addChild(cancelButtonLabel);
@@ -121,22 +128,22 @@ export class InfoPopup extends Container {
       this.cancelButton &&
       this.okButton
     ) {
+      const buttonSpacing = 150;
       this.cancelButton.anchor.set(0.5);
-      this.cancelButton.x =
-        app.screen.width / 2 - this.cancelButton.width / 2 - 10;
-      this.cancelButton.y = app.screen.height / 2 + this.cancelButton.height;
+      this.cancelButton.x = app.screen.width / 2 - buttonSpacing / 2;
+      this.cancelButton.y = app.screen.height / 2 + 80;
 
       this.okButton.anchor.set(0.5);
-      this.okButton.x = app.screen.width / 2 + this.okButton.width / 2 + 10;
-      this.okButton.y = app.screen.height / 2 + this.okButton.height;
+      this.okButton.x = app.screen.width / 2 + buttonSpacing / 2;
+      this.okButton.y = app.screen.height / 2 + 80;
     } else if (showCancelButton && this.cancelButton) {
       this.cancelButton.anchor.set(0.5);
       this.cancelButton.x = app.screen.width / 2;
-      this.cancelButton.y = app.screen.height / 2 + this.cancelButton.height;
+      this.cancelButton.y = app.screen.height / 2 + 80;
     } else if (showOkButton && this.okButton) {
       this.okButton.anchor.set(0.5);
       this.okButton.x = app.screen.width / 2;
-      this.okButton.y = app.screen.height / 2 + this.okButton.height;
+      this.okButton.y = app.screen.height / 2 + 80;
     }
 
     this.addChild(this.messageLabel);

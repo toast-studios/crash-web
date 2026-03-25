@@ -1,6 +1,6 @@
 import { Container, Sprite, Ticker, type DestroyOptions } from "pixi.js";
 import gsap from "gsap";
-import { CRASH_EVENTS, CRASH_ACTIONS } from "../constants";
+import { CRASH_EVENTS, CRASH_ACTIONS, GAME_MODES } from "../constants";
 import {
   CRASH_ASSETS,
   CRASH_LAYOUT,
@@ -31,6 +31,7 @@ import {
   type CrashActionAckResponse,
 } from "../types/crashGame";
 import { Logger } from "../utils/logger";
+import { sfx } from "../utils/audio";
 import { SpaceBackground } from "../ui/SpaceBackground";
 import { HeatProgressBar } from "../ui/crash/HeatProgressBar";
 import { CrashActionButton } from "../ui/crash/CrashActionButton";
@@ -50,13 +51,20 @@ import { InfoPopup } from "../popups/InfoPopup";
 import { ClientEvent } from "../utils/clientEvent";
 import { isMetaFreeWin, isFreeWin } from "../utils/game";
 import {
+  API_CONSTANTS,
   CURRENT_PARTNER,
   PARTNER_ID,
   PARTNER_SPECIFIC_CONFIG,
 } from "../network/constants";
 
 /** Padding from screen edge for top-left logo and top-right cross button. */
-const TOP_EDGE_PADDING = 20;
+const TOP_EDGE_PADDING = 10;
+
+/** Critical siren audio path and volume settings */
+const CRITICAL_AUDIO = {
+  PATH: "common/critical_siren.mp3",
+  VOLUME: 0.3,
+} as const;
 
 const HEAT_SCROLL = {
   MAX_SPEED: 10,
@@ -71,7 +79,6 @@ const CRITICAL_SHAKE = {
   SETTLE_DURATION: 0.1,
 } as const;
 
-const MOCK_SHIP_SPEED_KMH = 742;
 const SHIP_SPEED_LABEL_Y_OFFSET = -30;
 
 enum CrashAction {
@@ -109,8 +116,10 @@ export class CrashGameScreen extends Container {
   private optimisticExited = false;
   private hasTriggeredBlast = false;
   private isAnimatingToTrail = false;
+  private isCriticalBackgroundVisible = false;
 
   private background: SpaceBackground;
+  private criticalBackground: Sprite;
   private trail: Sprite;
   private crossButton: CrossButton;
   private logo: Sprite;
@@ -141,6 +150,7 @@ export class CrashGameScreen extends Container {
     this.state.applyGameStateSync(data);
     this.syncScrollSpeed();
     this.syncShakeEffect();
+    this.syncCriticalBackground();
     this.checkAndTriggerBlast();
     this.updateDisplay();
   };
@@ -162,6 +172,7 @@ export class CrashGameScreen extends Container {
     if (this.destroyed) return;
     Logger.info("CrashGameScreen: roundOver", data);
     this.state.applyRoundOver(data);
+    this.hideCriticalBackground();
     this.updateDisplay();
   };
 
@@ -203,6 +214,11 @@ export class CrashGameScreen extends Container {
     this.background = new SpaceBackground();
     this.addChild(this.background);
 
+    this.criticalBackground = Sprite.from(CRASH_ASSETS.CRITICAL_BACKGROUND);
+    this.criticalBackground.anchor.set(0.5);
+    this.criticalBackground.alpha = 0;
+    this.addChild(this.criticalBackground);
+
     this.trail = Sprite.from(CRASH_ASSETS.TRAIL);
     this.trail.anchor.set(0.5);
     this.trail.scale.set(0.5);
@@ -219,7 +235,7 @@ export class CrashGameScreen extends Container {
 
     this.logo = Sprite.from(CRASH_ASSETS.CRASH_WARS_LOGO);
     this.logo.anchor.set(0, 0);
-    this.logo.scale.set(0.5);
+    this.logo.scale.set(0.15);
     this.addChild(this.logo);
 
     this.playerCountHeader = new PlayerCountHeader();
@@ -311,6 +327,7 @@ export class CrashGameScreen extends Container {
       this.trail.alpha = 1;
       this.syncScrollSpeed();
       this.syncShakeEffect();
+      this.syncCriticalBackground();
     }
 
     this.addWebviewListeners();
@@ -331,6 +348,15 @@ export class CrashGameScreen extends Container {
     this.removeWebviewListeners();
     this.stopSocketEventListeners();
     this.stopShakeEffect();
+    
+    // Hide critical background, stop critical siren, and kill its tweens
+    if (this.criticalBackground && !this.criticalBackground.destroyed) {
+      gsap.killTweensOf(this.criticalBackground);
+      this.criticalBackground.alpha = 0;
+      this.isCriticalBackgroundVisible = false;
+      sfx.stop(CRITICAL_AUDIO.PATH);
+    }
+    
     gsap.killTweensOf(this);
     gsap.killTweensOf(this.children);
 
@@ -349,10 +375,15 @@ export class CrashGameScreen extends Container {
 
     this.background.resize(width, height);
 
+    this.criticalBackground.x = centerX;
+    this.criticalBackground.y = height / 2;
+    this.criticalBackground.width = width;
+    this.criticalBackground.height = height;
+
     this.trail.x = centerX;
     this.trail.y = (5 * height) / 8 + 50; // Moved down by 50px
 
-    this.logoBaseX = TOP_EDGE_PADDING;
+    this.logoBaseX = TOP_EDGE_PADDING - 10;
     this.logoBaseY = TOP_EDGE_PADDING;
     this.logo.x = this.logoBaseX;
     this.logo.y = this.logoBaseY;
@@ -366,10 +397,8 @@ export class CrashGameScreen extends Container {
       this.playerCountHeader.getComponentHeight() +
       15;
 
-    const crossW = this.crossButton.getWidth();
-    const crossH = this.crossButton.getHeight();
-    this.crossButton.x = width - TOP_EDGE_PADDING - crossW / 2;
-    this.crossButton.y = TOP_EDGE_PADDING + crossH / 2;
+    this.crossButton.x = width - TOP_EDGE_PADDING - 40
+    this.crossButton.y = TOP_EDGE_PADDING + 40
 
     if (!this.isAnimatingToTrail) {
       Logger.info(
@@ -453,7 +482,7 @@ export class CrashGameScreen extends Container {
   public sendCool(): void {
     if (!this.state.isMyPlayerAlive() || this.state.coolUsesLeft <= 0) return;
 
-    // ClientEvent.HapticFeedback("impactMedium");
+    ClientEvent.HapticFeedback("impactMedium");
     this.state.coolUsesLeft--;
     this.updateDisplay();
 
@@ -479,7 +508,7 @@ export class CrashGameScreen extends Container {
   public sendBoost(): void {
     if (!this.state.isMyPlayerAlive() || this.state.boostUsesLeft <= 0) return;
 
-    // ClientEvent.HapticFeedback("impactMedium");
+    ClientEvent.HapticFeedback("impactMedium");
     this.state.boostUsesLeft--;
     this.updateDisplay();
 
@@ -505,7 +534,7 @@ export class CrashGameScreen extends Container {
   public sendExit(): void {
     if (!this.state.isMyPlayerAlive() || this.optimisticExited) return;
 
-    // ClientEvent.HapticFeedback("notificationSuccess");
+    ClientEvent.HapticFeedback("notificationSuccess");
     Logger.info(`[CrashGameScreen] 🚪 Sending exit_ship action to server`);
     this.optimisticExited = true;
     this.coolButton.setEnabled(false);
@@ -546,7 +575,7 @@ export class CrashGameScreen extends Container {
   private handleCrossPress(): void {
     if (this.destroyed) return;
 
-    // ClientEvent.HapticFeedback("selection");
+    ClientEvent.HapticFeedback("selection");
 
     if (isMetaFreeWin()) {
       ClientEvent.ShowQuitPopupModal();
@@ -572,8 +601,40 @@ export class CrashGameScreen extends Container {
   }
 
   /**
+   * Emits the leave game socket event and handles server response.
+   * For practice mode, directly closes the webview without server notification.
+   */
+  private handleEmitLeaveGame(): void {
+    Logger.info("handleEmitLeaveGame called");
+
+    if (API_CONSTANTS.GAME_MODES === GAME_MODES.PRACTICE) {
+      navigation.closeWebView();
+      return;
+    }
+
+    socketManager.emit<CrashActionAckResponse>(
+      CRASH_ACTIONS.LEAVE_GAME,
+      {},
+      (response) => {
+        if (response.error) {
+          navigation.presentPopup(InfoPopup, {
+            message: response.message,
+          });
+          return;
+        }
+
+        if (isFreeWin() || CURRENT_PARTNER === PARTNER_ID.bt) {
+          navigation.closeWebView();
+        } else {
+          navigation.goBackToLobby(true);
+        }
+      }
+    );
+  }
+
+  /**
    * Executes the actual leave-game flow: shows a loading popup,
-   * then routes to lobby or closes webview per partner config.
+   * then emits the leave game socket event to notify the server.
    */
   private executeLeaveGame(): void {
     navigation.presentPopup(InfoPopup, {
@@ -583,11 +644,7 @@ export class CrashGameScreen extends Container {
       showOkButton: false,
     });
 
-    if (isFreeWin() || CURRENT_PARTNER === PARTNER_ID.bt) {
-      navigation.closeWebView();
-    } else {
-      navigation.goBackToLobby(true);
-    }
+    this.handleEmitLeaveGame();
   }
 
   /**
@@ -839,6 +896,65 @@ export class CrashGameScreen extends Container {
     }
   }
 
+  /**
+   * Shows or hides the critical background based on heat zone.
+   * Animates opacity smoothly when transitioning between states.
+   */
+  private syncCriticalBackground(): void {
+    const isCritical = this.state.heatZone === "critical";
+
+    if (isCritical && !this.isCriticalBackgroundVisible) {
+      Logger.info(
+        `[CrashGameScreen] 🔴 Showing critical background (heat zone: critical)`,
+      );
+      this.showCriticalBackground();
+    } else if (!isCritical && this.isCriticalBackgroundVisible) {
+      Logger.info(
+        `[CrashGameScreen] ✅ Hiding critical background (heat zone: ${this.state.heatZone})`,
+      );
+      this.hideCriticalBackground();
+    }
+  }
+
+  /**
+   * Animates the critical background to full opacity and starts the critical siren sound.
+   */
+  private showCriticalBackground(): void {
+    if (this.destroyed || !this.criticalBackground) return;
+
+    this.isCriticalBackgroundVisible = true;
+    gsap.killTweensOf(this.criticalBackground);
+    gsap.to(this.criticalBackground, {
+      alpha: 1,
+      duration: 0.5,
+      ease: "power2.out",
+    });
+
+    // Play critical siren sound effect in loop with reduced volume
+    sfx.play(CRITICAL_AUDIO.PATH, {
+      loop: true,
+      volume: CRITICAL_AUDIO.VOLUME,
+    });
+  }
+
+  /**
+   * Animates the critical background to zero opacity and stops the critical siren sound.
+   */
+  private hideCriticalBackground(): void {
+    if (this.destroyed || !this.criticalBackground) return;
+
+    this.isCriticalBackgroundVisible = false;
+    gsap.killTweensOf(this.criticalBackground);
+    gsap.to(this.criticalBackground, {
+      alpha: 0,
+      duration: 0.5,
+      ease: "power2.in",
+    });
+
+    // Stop critical siren sound effect
+    sfx.stop(CRITICAL_AUDIO.PATH);
+  }
+
   private startShakeEffect(): void {
     this.stopShakeEffect();
 
@@ -914,7 +1030,7 @@ export class CrashGameScreen extends Container {
     if (this.state.phase === "roundOver") {
       Logger.info(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
       this.hasTriggeredBlast = true;
-      // ClientEvent.HapticFeedback("impactHeavy");
+      ClientEvent.HapticFeedback("impactHeavy");
       this.spaceshipLottie.loadAnimation(
         CRASH_LOTTIE_PATHS.SPACESHIP_BLAST,
         false,
@@ -998,6 +1114,6 @@ export class CrashGameScreen extends Container {
     if (this.state.shipSpeed > 0) {
       return this.state.shipSpeed;
     }
-    return this.state.phase === "running" ? MOCK_SHIP_SPEED_KMH : 0;
+    return 0;
   }
 }

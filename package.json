@@ -8,7 +8,7 @@
     "start": "dotenv -- vite --open",
     "copyLotties": "mkdir -p ./dist/lotties && cp -r ./lotties/* ./dist/lotties",
     "prebuild": "run-s clean format:check lint assets types",
-    "build": "dotenv -- vite build  && npm run copyLotties",
+    "build": "npm run format && dotenv -- vite build  && npm run copyLotties",
     "types": "tsc",
     "prepreview": "run-s build",
     "preview": "dotenv -- vite preview --open",

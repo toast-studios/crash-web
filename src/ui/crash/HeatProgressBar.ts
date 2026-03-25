@@ -18,8 +18,8 @@ import type { HeatZone } from "../../types/crashGame";
 const PERCENTAGE_FONT_SIZE = 22;
 const FIXED_BAR_WIDTH = 220;
 const FIXED_BAR_HEIGHT = 30;
-const FIXED_BOOM_BOX_WIDTH = 100;
-const BOOM_CRASH_FONT_SIZE = 14;
+const FIXED_BOOM_BOX_WIDTH = 40;
+const BOOM_CRASH_FONT_SIZE = 12;
 
 // Below ~0.87 so a thin band of shadow can show under the bright fill; user
 // can tune height vs. mask clearance.
@@ -39,7 +39,7 @@ const MASK_INSET = 2;
 const FILL_QUICK_TO_DURATION = 0.12;
 
 const CRITICAL_THRESHOLD = 90;
-const BOOM_CRASH_CRITICAL_COLOR = 0xff2222;
+const BOOM_CRASH_CRITICAL_COLOR = 0x533200;
 const CRITICAL_PULSE_SCALE = 1.28;
 const CRITICAL_PULSE_DURATION = 0.45;
 
@@ -210,25 +210,26 @@ export class HeatProgressBar extends Container {
 
     this.boomBox = Sprite.from(CRASH_ASSETS.BOOM_BOX);
     this.boomBox.anchor.set(0.5);
-    this.boomBox.height = FIXED_BAR_HEIGHT + 40;
+    this.boomBox.height = FIXED_BAR_HEIGHT + 5;
     this.boomBox.width = FIXED_BOOM_BOX_WIDTH;
-    this.boomBox.x = -6;
-    this.boomBox.y = 0;
+    this.boomBox.x = -5;
+    this.boomBox.y = 2;
     this.boomBoxGroup.addChild(this.boomBox);
 
     this.boomCrashText = new Text({
-      text: "CRASH!",
+      text: "CRASH",
       style: {
         fontFamily: FONTS.PRIMARY,
         fontSize: BOOM_CRASH_FONT_SIZE,
         fontWeight: FONT_WEIGHTS.BOLD,
         fill: CRASH_COLORS.PERCENTAGE_TEXT,
         align: "center",
+        stroke: 0xd08b00,
       },
     });
     this.boomCrashText.anchor.set(0.5);
-    this.boomCrashText.x = 3;
-    this.boomCrashText.y = 0;
+    this.boomCrashText.x = -3;
+    this.boomCrashText.y = 1;
     this.boomBoxGroup.addChild(this.boomCrashText);
 
     this.addChild(this.boomBoxGroup);

@@ -95,6 +95,7 @@ export const CRASH_EVENTS = {
 
 export const CRASH_ACTIONS = {
   CRASH_ACTION: "crashAction",
+  LEAVE_GAME: "leaveGame",
 } as const;
 
 export type CrashEventName = (typeof CRASH_EVENTS)[keyof typeof CRASH_EVENTS];

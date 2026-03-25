@@ -18,6 +18,7 @@ export const CRASH_ASSETS = {
   HEAT_ICON: "heat_icon",
   COOL_ICON: "cool_icon",
   SPACE_STARS: "space_stars",
+  CRITICAL_BACKGROUND: "critical_background",
 } as const;
 
 export const CRASH_LAYOUT = {
@@ -65,6 +66,6 @@ export const CRASH_COLORS = {
   BADGE_BG: 0x1a1a3e,
   BADGE_BORDER: 0xffffff,
   BADGE_TEXT: 0xffffff,
-  PERCENTAGE_TEXT: 0xffffff,
+  PERCENTAGE_TEXT: 0x533200,
   DISABLED_TINT: 0x666666,
 } as const;
