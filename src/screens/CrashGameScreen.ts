@@ -348,7 +348,7 @@ export class CrashGameScreen extends Container {
     this.removeWebviewListeners();
     this.stopSocketEventListeners();
     this.stopShakeEffect();
-    
+
     // Hide critical background, stop critical siren, and kill its tweens
     if (this.criticalBackground && !this.criticalBackground.destroyed) {
       gsap.killTweensOf(this.criticalBackground);
@@ -356,7 +356,7 @@ export class CrashGameScreen extends Container {
       this.isCriticalBackgroundVisible = false;
       sfx.stop(CRITICAL_AUDIO.PATH);
     }
-    
+
     gsap.killTweensOf(this);
     gsap.killTweensOf(this.children);
 
@@ -397,8 +397,8 @@ export class CrashGameScreen extends Container {
       this.playerCountHeader.getComponentHeight() +
       15;
 
-    this.crossButton.x = width - TOP_EDGE_PADDING - 40
-    this.crossButton.y = TOP_EDGE_PADDING + 40
+    this.crossButton.x = width - TOP_EDGE_PADDING - 40;
+    this.crossButton.y = TOP_EDGE_PADDING + 40;
 
     if (!this.isAnimatingToTrail) {
       Logger.info(
@@ -628,7 +628,7 @@ export class CrashGameScreen extends Container {
         } else {
           navigation.goBackToLobby(true);
         }
-      }
+      },
     );
   }
 
