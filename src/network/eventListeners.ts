@@ -1,4 +1,5 @@
 import CONSTANTS, { CRASH_EVENTS } from "../constants";
+import CONSTANTS, { CRASH_EVENTS } from "../constants";
 import { Lobby, MatchFoundData, StoreData } from "../store/storeTypes";
 import type {
   GameTableInfoPayload,
@@ -7,6 +8,7 @@ import type {
   CrashGameResultPayload,
   CrashErrorPayload,
 } from "../types/crashGame";
+import { CRASH_TIMING } from "../constants/crashTiming";
 import { CRASH_TIMING } from "../constants/crashTiming";
 import { LOBBY_FORMAT, CURRENCY_CODES } from "../types";
 import { Logger } from "../utils/logger";
