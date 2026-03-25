@@ -3,8 +3,6 @@
 
 import { LOBBY_FORMAT } from ".";
 
-import { LOBBY_FORMAT } from ".";
-
 // --- Domain Primitives ---
 
 export type CrashPlayerStatus = "alive" | "exited" | "bust";

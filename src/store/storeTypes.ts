@@ -1,6 +1,5 @@
 import { CURRENCY_CODES, LOBBY_FORMAT, LOBBY_TYPE } from "../types";
 import { CardId } from "../ui/Cards/Card";
-import { ColumnState } from "../ui/Leaderboard";
 
 export enum ALLOW_ACTIONS {
   PICK_CARD = "PICK_CARD",
@@ -120,11 +119,6 @@ export type StoreData = {
   columnsPerRound?: number;
   activeColumnIndex: number; // * default -1
   countdownSeconds?: number;
-  extra?: {
-    [gameUserId: string]: {
-      columnsState: ColumnState[];
-    };
-  };
   leaderboard?: Array<{
     gameUserId: string;
     score: number;

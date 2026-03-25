@@ -9,9 +9,9 @@ import { GoldenButton } from "../../ui/GoldenButton";
 import { Logger } from "../../utils/logger";
 import { handleDefaultLobbySelection, registerInLobby } from "../base";
 import { ClientEvent } from "../../utils/clientEvent";
-import { WinShowBox } from "../../ui/WinShowBox";
 import { BaseUIConfig, getLobbyScreenUIConfig } from "../base/UIConfigs";
 import { app } from "../../app";
+import { WinShowBox } from "../../ui/WinShowBox";
 
 export class LobbyScreenBase extends Container {
   public background: TiledBackground;

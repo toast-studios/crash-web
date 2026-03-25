@@ -1,6 +1,5 @@
 import { Container, Sprite, FederatedPointerEvent, Graphics } from "pixi.js";
 import gsap from "gsap";
-import { PokerChip } from "./PokerChip";
 // import { formatNumberToShortScale } from "../utils/lobby";
 import { sfx } from "../utils/audio";
 import {
@@ -10,6 +9,7 @@ import {
 import { CURRENT_PARTNER, PARTNER_ID } from "../network/constants";
 import { Lobby } from "../utils/winButtonText";
 import { formatCurrency } from "../utils/currency";
+import { PokerChip } from "./PokerChip";
 
 interface CoinData {
   lobbyData: Lobby;
