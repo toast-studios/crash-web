@@ -81,6 +81,10 @@ const CRITICAL_SHAKE = {
 
 const SHIP_SPEED_LABEL_Y_OFFSET = -30;
 
+const SPACESHIP_ANIMATION = {
+  INIT_TO_TRAIL_DURATION_S: 1.5,
+} as const;
+
 enum CrashAction {
   COOL = "cool",
   BOOST = "boost",
@@ -173,6 +177,9 @@ export class CrashGameScreen extends Container {
     Logger.info("CrashGameScreen: roundOver", data);
     this.state.applyRoundOver(data);
     this.hideCriticalBackground();
+    this.shipSpeedLabel.visible = false;
+    this.shipSpeedLabel.alpha = 0;
+    gsap.killTweensOf(this.shipSpeedLabel);
     this.updateDisplay();
   };
 
@@ -601,11 +608,11 @@ export class CrashGameScreen extends Container {
   }
 
   /**
-   * Emits the leave game socket event and handles server response.
-   * For practice mode, directly closes the webview without server notification.
+   * Executes the actual leave-game flow: emits leave game socket event,
+   * then routes to lobby or closes webview per partner config.
    */
-  private handleEmitLeaveGame(): void {
-    Logger.info("handleEmitLeaveGame called");
+  private executeLeaveGame(): void {
+    Logger.info("executeLeaveGame called");
 
     if (API_CONSTANTS.GAME_MODES === GAME_MODES.PRACTICE) {
       navigation.closeWebView();
@@ -630,21 +637,6 @@ export class CrashGameScreen extends Container {
         }
       },
     );
-  }
-
-  /**
-   * Executes the actual leave-game flow: shows a loading popup,
-   * then emits the leave game socket event to notify the server.
-   */
-  private executeLeaveGame(): void {
-    navigation.presentPopup(InfoPopup, {
-      showLoader: true,
-      message: "",
-      showCancelButton: false,
-      showOkButton: false,
-    });
-
-    this.handleEmitLeaveGame();
   }
 
   /**
@@ -688,11 +680,13 @@ export class CrashGameScreen extends Container {
   }
 
   /**
-   * Animates the spaceship lottie on a parabolic path from center to above the trail.
-   * The spaceship tilts diagonally to the left during the animation.
+   * Animates the spaceship lottie in a straight line from center to above the trail.
+   * Uses ease-in (slow start → fast end) and keeps rotation fixed at the final angle.
    */
   private animateSpaceshipToTrail(): void {
-    Logger.info(`[CrashGameScreen] 🌈 Starting parabolic animation to trail`);
+    Logger.info(
+      `[CrashGameScreen] 🚀 Starting straight-line animation to trail`,
+    );
 
     const canvas = app.renderer.canvas as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
@@ -714,7 +708,7 @@ export class CrashGameScreen extends Container {
       start: { x: startX, y: startY },
       end: { x: endX, y: endY },
       rotation: CRASH_LAYOUT.SPACESHIP_ROTATION,
-      duration: 2,
+      duration: SPACESHIP_ANIMATION.INIT_TO_TRAIL_DURATION_S,
     });
 
     this.spaceshipLottie.reposition(startX, startY, lottieW, lottieH);
@@ -725,26 +719,19 @@ export class CrashGameScreen extends Container {
 
     this.isAnimatingToTrail = true;
 
+    // Keep the rotation angle constant throughout the move (no rotation tween).
+    // GSAP's `rotation` property would animate from the current angle to the target.
+    lottieContainer.style.transform = `rotate(${CRASH_LAYOUT.SPACESHIP_ROTATION}deg)`;
+    lottieContainer.style.transformOrigin = "center center";
+
     gsap.to(lottieContainer, {
       left: endX,
       top: endY,
-      rotation: CRASH_LAYOUT.SPACESHIP_ROTATION,
-      duration: 2,
-      ease: "power2.inOut",
-      transformOrigin: "center center",
-      onUpdate: function (this: gsap.core.Tween) {
-        // Guard: the screen or lottie may have been destroyed while this
-        // 2-second tween is in flight. Accessing .style on a removed element
-        // would throw and crash the webview JS context.
-        if (!lottieContainer.isConnected) return;
-        const progress = this.progress();
-        const arc = Math.sin(progress * Math.PI) * 100;
-        const currentLeft = startX + (endX - startX) * progress + arc;
-        lottieContainer.style.left = `${currentLeft}px`;
-      },
+      duration: SPACESHIP_ANIMATION.INIT_TO_TRAIL_DURATION_S,
+      ease: "power2.in",
       onComplete: () => {
         Logger.info(
-          `[CrashGameScreen] ✅ Parabolic animation complete - lottie at final position`,
+          `[CrashGameScreen] ✅ Straight-line animation complete - lottie at final position`,
         );
         this.isAnimatingToTrail = false;
 
@@ -1031,6 +1018,9 @@ export class CrashGameScreen extends Container {
       Logger.info(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
       this.hasTriggeredBlast = true;
       ClientEvent.HapticFeedback("impactHeavy");
+      this.shipSpeedLabel.visible = false;
+      this.shipSpeedLabel.alpha = 0;
+      gsap.killTweensOf(this.shipSpeedLabel);
       this.spaceshipLottie.loadAnimation(
         CRASH_LOTTIE_PATHS.SPACESHIP_BLAST,
         false,
