@@ -21,9 +21,9 @@ export const lottieAnimations: LottieAnimations = {
 };
 
 export const initLottie = () => {
-  initDrawAnimation();
-  initYouWinAnimation();
-  initYouLoseAnimation();
+  // initDrawAnimation();
+  // initYouWinAnimation();
+  // initYouLoseAnimation();
   initLogoAnimation();
 };
 
@@ -66,47 +66,6 @@ export const initBustAnimation = (pixiChild: Container) => {
     });
     lottieAnimations.bustOpponent?.stop();
   }
-};
-
-const initYouWinAnimation = () => {
-  lottieAnimations.youWin = lottie.loadAnimation({
-    name: "youWin",
-    container: document.getElementById(
-      "youWin-lottie-container",
-    ) as HTMLCanvasElement,
-    renderer: "svg",
-    loop: false,
-    autoplay: false,
-    path: `${window.location.origin}/lotties/YouWin.json`,
-  });
-  lottieAnimations.youWin?.stop();
-};
-
-const initYouLoseAnimation = () => {
-  lottieAnimations.youLose = lottie.loadAnimation({
-    name: "youLose",
-    container: document.getElementById(
-      "youLose-lottie-container",
-    ) as HTMLCanvasElement,
-    renderer: "svg",
-    loop: false,
-    autoplay: false,
-    path: `${window.location.origin}/lotties/YouLose.json`,
-  });
-};
-
-const initDrawAnimation = () => {
-  lottieAnimations.draw = lottie.loadAnimation({
-    name: "draw",
-    container: document.getElementById(
-      "draw-lottie-container",
-    ) as HTMLCanvasElement,
-    renderer: "svg",
-    loop: false,
-    autoplay: false,
-    path: `${window.location.origin}/lotties/Draw.json`,
-  });
-  lottieAnimations.draw?.stop();
 };
 
 export const initLogoAnimation = () => {

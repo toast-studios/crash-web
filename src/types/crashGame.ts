@@ -2,6 +2,7 @@
 // Derived from crash-web/shared/types.ts and the Toast server payload contracts.
 
 import { LOBBY_FORMAT } from ".";
+import { Lobby } from "../store/storeTypes";
 
 // --- Domain Primitives ---
 
@@ -52,12 +53,14 @@ export interface CrashGameConfig {
 
 export interface GameTableInfoPayload {
   matchId: string;
+  gameUserId: string;
   isReconnection: boolean;
   gameConfig: CrashGameConfig;
   players: Array<{
     gameUserId: string;
     username: string;
     status: string;
+    lobbyDetails: Lobby;
   }>;
   gameStateSync?: GameStateSyncPayload;
 }

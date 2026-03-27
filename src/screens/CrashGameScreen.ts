@@ -41,7 +41,6 @@ import { LottiePlayer } from "../ui/crash/LottiePlayer";
 import { SurviveTimer } from "../ui/crash/SurviveTimer";
 import { CrashFeed } from "../ui/crash/CrashFeed";
 import { PlayerCountHeader } from "../ui/crash/PlayerCountHeader";
-import { HeatDeltaText } from "../ui/crash/HeatDeltaText";
 import { ActionBubbleEffect } from "../ui/crash/ActionBubbleEffect";
 import { ShipSpeedLabel } from "../ui/crash/ShipSpeedLabel";
 import { app } from "../app";
@@ -64,6 +63,12 @@ const TOP_EDGE_PADDING = 10;
 const CRITICAL_AUDIO = {
   PATH: "common/critical_siren.mp3",
   VOLUME: 0.3,
+} as const;
+
+/** Critical haptic feedback configuration */
+const CRITICAL_HAPTIC = {
+  INTERVAL_MS: 500,
+  MAX_DURATION_MS: 30000,
 } as const;
 
 const HEAT_SCROLL = {
@@ -93,6 +98,7 @@ enum CrashAction {
 
 export interface CrashGameScreenOptions {
   matchId: string;
+  gameUserId: string;
   isReconnection: boolean;
   gameConfig: GameTableInfoPayload["gameConfig"];
   players: GameTableInfoPayload["players"];
@@ -121,6 +127,8 @@ export class CrashGameScreen extends Container {
   private hasTriggeredBlast = false;
   private isAnimatingToTrail = false;
   private isCriticalBackgroundVisible = false;
+  private criticalHapticIntervalId: number | null = null;
+  private criticalHapticStartTime: number | null = null;
 
   private background: SpaceBackground;
   private criticalBackground: Sprite;
@@ -137,7 +145,6 @@ export class CrashGameScreen extends Container {
   private surviveTimer: SurviveTimer;
   private playerCountHeader: PlayerCountHeader;
   private feed: CrashFeed;
-  private heatDeltaText: HeatDeltaText;
   private bubbleEffect: ActionBubbleEffect;
   public spaceshipLottie: LottiePlayer;
   private shipSpeedLabel: ShipSpeedLabel;
@@ -168,7 +175,6 @@ export class CrashGameScreen extends Container {
         delta,
         id: `${Date.now()}-${Math.random()}`,
       };
-      this.heatDeltaText.show(delta);
     }
   };
 
@@ -177,6 +183,13 @@ export class CrashGameScreen extends Container {
     Logger.info("CrashGameScreen: roundOver", data);
     this.state.applyRoundOver(data);
     this.hideCriticalBackground();
+
+    // Explicitly stop haptic loop on round over
+    this.stopCriticalHapticLoop();
+
+    // Stop background scrolling animation
+    this.background.setScrollSpeed(0);
+
     this.shipSpeedLabel.visible = false;
     this.shipSpeedLabel.alpha = 0;
     gsap.killTweensOf(this.shipSpeedLabel);
@@ -192,7 +205,6 @@ export class CrashGameScreen extends Container {
     this.state.applyGameStart(data);
     this.syncScrollSpeed();
     this.updateDisplay();
-    ClientEvent.GameStarted({ amount: 0 });
   };
 
   private readonly handleAppMessage = (event: MessageEvent) => {
@@ -265,9 +277,6 @@ export class CrashGameScreen extends Container {
 
     this.progressBar = new HeatProgressBar();
     this.dashboardContainer.addChild(this.progressBar);
-
-    this.heatDeltaText = new HeatDeltaText();
-    this.dashboardContainer.addChild(this.heatDeltaText);
 
     this.bubbleEffect = new ActionBubbleEffect();
     this.dashboardContainer.addChild(this.bubbleEffect);
@@ -356,6 +365,9 @@ export class CrashGameScreen extends Container {
     this.stopSocketEventListeners();
     this.stopShakeEffect();
 
+    // Stop haptic feedback loop
+    this.stopCriticalHapticLoop();
+
     // Hide critical background, stop critical siren, and kill its tweens
     if (this.criticalBackground && !this.criticalBackground.destroyed) {
       gsap.killTweensOf(this.criticalBackground);
@@ -421,9 +433,6 @@ export class CrashGameScreen extends Container {
 
     this.progressBar.x = (width - this.progressBar.getBarWidth()) / 2;
     this.progressBar.y = 110;
-
-    this.heatDeltaText.x = width / 2;
-    this.heatDeltaText.y = this.progressBar.y - 16;
 
     this.bubbleEffect.x = width / 2;
     this.bubbleEffect.y = this.progressBar.y + PROGRESS_BAR_HEIGHT;
@@ -615,6 +624,7 @@ export class CrashGameScreen extends Container {
     Logger.info("executeLeaveGame called");
 
     if (API_CONSTANTS.GAME_MODES === GAME_MODES.PRACTICE) {
+      Logger.info("CrashGameScreen: Closing web view for practice mode");
       navigation.closeWebView();
       return;
     }
@@ -624,6 +634,10 @@ export class CrashGameScreen extends Container {
       {},
       (response) => {
         if (response.error) {
+          Logger.error(
+            "CrashGameScreen: leave game rejected",
+            response.message,
+          );
           navigation.presentPopup(InfoPopup, {
             message: response.message,
           });
@@ -631,6 +645,7 @@ export class CrashGameScreen extends Container {
         }
 
         if (isFreeWin() || CURRENT_PARTNER === PARTNER_ID.bt) {
+          Logger.info("CrashGameScreen: Closing web view");
           navigation.closeWebView();
         } else {
           navigation.goBackToLobby(true);
@@ -917,11 +932,72 @@ export class CrashGameScreen extends Container {
       ease: "power2.out",
     });
 
+    // Trigger initial haptic feedback
+    ClientEvent.HapticFeedback("notificationError");
+
+    // Start continuous haptic feedback loop
+    this.startCriticalHapticLoop();
+
     // Play critical siren sound effect in loop with reduced volume
     sfx.play(CRITICAL_AUDIO.PATH, {
       loop: true,
       volume: CRITICAL_AUDIO.VOLUME,
     });
+  }
+
+  /**
+   * Starts continuous haptic feedback loop during critical heat zone.
+   * Pulses every 500ms with multiple safety checks to prevent leaks.
+   */
+  private startCriticalHapticLoop(): void {
+    // Clear any existing interval first (prevents multiple intervals)
+    this.stopCriticalHapticLoop();
+
+    this.criticalHapticStartTime = Date.now();
+
+    this.criticalHapticIntervalId = window.setInterval(() => {
+      // Safety check: Component destroyed
+      if (this.destroyed) {
+        this.stopCriticalHapticLoop();
+        return;
+      }
+
+      // Safety check: No longer in critical state
+      if (
+        !this.isCriticalBackgroundVisible ||
+        this.state.heatZone !== "critical"
+      ) {
+        this.stopCriticalHapticLoop();
+        return;
+      }
+
+      // Safety check: Time limit exceeded (30 seconds)
+      const elapsed = Date.now() - (this.criticalHapticStartTime || 0);
+      if (elapsed > CRITICAL_HAPTIC.MAX_DURATION_MS) {
+        Logger.info(
+          "[CrashGameScreen] Critical haptic loop stopped - 30s time limit reached",
+        );
+        this.stopCriticalHapticLoop();
+        return;
+      }
+
+      // Trigger haptic pulse
+      ClientEvent.HapticFeedback("notificationError");
+    }, CRITICAL_HAPTIC.INTERVAL_MS);
+
+    Logger.info("[CrashGameScreen] 🔴 Started critical haptic feedback loop");
+  }
+
+  /**
+   * Stops the continuous haptic feedback loop and clears interval state.
+   */
+  private stopCriticalHapticLoop(): void {
+    if (this.criticalHapticIntervalId !== null) {
+      clearInterval(this.criticalHapticIntervalId);
+      this.criticalHapticIntervalId = null;
+      this.criticalHapticStartTime = null;
+      Logger.info("[CrashGameScreen] ⏹️ Stopped critical haptic feedback loop");
+    }
   }
 
   /**
@@ -937,6 +1013,9 @@ export class CrashGameScreen extends Container {
       duration: 0.5,
       ease: "power2.in",
     });
+
+    // Stop haptic feedback loop
+    this.stopCriticalHapticLoop();
 
     // Stop critical siren sound effect
     sfx.stop(CRITICAL_AUDIO.PATH);
@@ -1017,7 +1096,10 @@ export class CrashGameScreen extends Container {
     if (this.state.phase === "roundOver") {
       Logger.info(`[CrashGameScreen] 💥 BLAST triggered - round is over`);
       this.hasTriggeredBlast = true;
-      ClientEvent.HapticFeedback("impactHeavy");
+
+      // Stop background scrolling animation
+      this.background.setScrollSpeed(0);
+
       this.shipSpeedLabel.visible = false;
       this.shipSpeedLabel.alpha = 0;
       gsap.killTweensOf(this.shipSpeedLabel);

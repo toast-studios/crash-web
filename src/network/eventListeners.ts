@@ -1,5 +1,5 @@
 import CONSTANTS, { CRASH_EVENTS } from "../constants";
-import { Lobby, MatchFoundData, StoreData } from "../store/storeTypes";
+import { Lobby, MatchFoundData } from "../store/storeTypes";
 import type {
   GameTableInfoPayload,
   CrashMatchFoundPayload,
@@ -20,11 +20,6 @@ import { MatchMakingScreen } from "../screens/NewMatchMakingScreen";
 import { CrashGameScreen } from "../screens/CrashGameScreen";
 import { CrashResultScreen } from "../screens/CrashResultScreen";
 import { InfoPopup } from "../popups/InfoPopup";
-import { getJWTData } from "../utils/jwt";
-import {
-  localStorageUtil,
-  LOCAL_STORAGE_KEYS,
-} from "../utils/localStorageUtil";
 
 let currentGameUserId: string | null = null;
 
@@ -88,39 +83,39 @@ export const attachEventListeners = () => {
     },
   );
 
-  socketManager.on(
-    CONSTANTS.EVENTS.GAME_TABLE_INFO,
-    async (data: StoreData) => {
-      Logger.info("GAME_TABLE_INFO", data);
-      currentGameUserId = data.gameUserId;
+  // socketManager.on(
+  //   CONSTANTS.EVENTS.GAME_TABLE_INFO,
+  //   async (data: StoreData) => {
+  //     Logger.info("GAME_TABLE_INFO", data);
+  //     currentGameUserId = data.gameUserId;
 
-      if (data.isReconnection) {
-        Logger.info("Reconnecting...");
-      }
-      if (data.countdownSeconds) {
-        const lobbyDetails = data.players[data.gameUserId].lobbyDetails;
-        if (lobbyDetails) {
-          navigation.showScreen(MatchMakingScreen, {
-            fromRematchModel: true,
-            remainingTime: data.countdownSeconds,
-            username: data.players[data.gameUserId].username,
-            playerProfilePicture: data.players[data.gameUserId].profilePicture,
-            playerFallbackImageUrl:
-              data.players[data.gameUserId].fallbackImageUrl,
-            lobbyDetails: {
-              ...lobbyDetails,
-              _id: (
-                data.players[data.gameUserId].lobbyDetails as unknown as {
-                  lobbyId: string;
-                }
-              ).lobbyId,
-            },
-          });
-        }
-        return;
-      }
-    },
-  );
+  //     if (data.isReconnection) {
+  //       Logger.info("Reconnecting...");
+  //     }
+  //     if (data.countdownSeconds) {
+  //       const lobbyDetails = data.players[data.gameUserId].lobbyDetails;
+  //       if (lobbyDetails) {
+  //         navigation.showScreen(MatchMakingScreen, {
+  //           fromRematchModel: true,
+  //           remainingTime: data.countdownSeconds,
+  //           username: data.players[data.gameUserId].username,
+  //           playerProfilePicture: data.players[data.gameUserId].profilePicture,
+  //           playerFallbackImageUrl:
+  //             data.players[data.gameUserId].fallbackImageUrl,
+  //           lobbyDetails: {
+  //             ...lobbyDetails,
+  //             _id: (
+  //               data.players[data.gameUserId].lobbyDetails as unknown as {
+  //                 lobbyId: string;
+  //               }
+  //             ).lobbyId,
+  //           },
+  //         });
+  //       }
+  //       return;
+  //     }
+  //   },
+  // );
 
   socketManager.on(CONSTANTS.EVENTS.MATCH_FOUND, (data: MatchFoundData) => {
     ClientEvent.MatchFound(
@@ -143,31 +138,19 @@ export const attachEventListeners = () => {
       Logger.info("CRASH GAME_TABLE_INFO", data);
       crashGameConfig = data.gameConfig;
 
-      const authToken =
-        localStorageUtil.getItem(LOCAL_STORAGE_KEYS.AUTH_TOKEN) ?? "";
-      const jwtData = authToken ? getJWTData(authToken) : null;
+      const myPlayer = data.players.find(
+        (p) => p.gameUserId === data.gameUserId,
+      );
 
-      if (!jwtData?.guid) {
+      if (!myPlayer) {
         Logger.error(
-          "CRASH GAME_TABLE_INFO: no guid in JWT",
-          new Error("Missing guid"),
+          "CRASH GAME_TABLE_INFO: myPlayer not found in players array",
+          new Error("Missing player"),
         );
         return;
       }
 
-      const myPlayer =
-        data.players.find((p) => p.gameUserId === (jwtData.guid as string)) ??
-        data.players[0];
-      currentGameUserId = myPlayer?.gameUserId ?? (jwtData.guid as string);
-
-      // Reconnection into a finished game — skip the game screen entirely;
-      // the gameResultScreen event will handle navigation to the result screen.
-      if (data.isReconnection && data.gameStateSync?.phase === "roundOver") {
-        Logger.info(
-          "CRASH GAME_TABLE_INFO: reconnection into roundOver — waiting for gameResultScreen",
-        );
-        return;
-      }
+      currentGameUserId = data.gameUserId;
 
       try {
         ClientEvent.GameStateChange({ gameState: "Gameplay" });
@@ -175,9 +158,14 @@ export const attachEventListeners = () => {
         await navigation.showScreen(CrashGameScreen, {
           matchId: data.matchId,
           isReconnection: data.isReconnection,
+          gameUserId: data.gameUserId,
           gameConfig: data.gameConfig,
           players: data.players,
           gameStateSync: data.gameStateSync,
+        });
+
+        ClientEvent.GameStarted({
+          amount: myPlayer.lobbyDetails?.entryFee ?? 0,
         });
 
         sendMessageToApp({
