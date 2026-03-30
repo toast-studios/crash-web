@@ -17,14 +17,15 @@ export default {
       },
       compression: {
         jpg: {
-          quality: 100,
+          quality: 90,
         },
         png: {
-          quality: 100,
+          quality: 95,
         },
         webp: {
-          quality: 100,
+          quality: 90,
         },
+        avif: false,
       },
       manifest: {
         output: "./public/assets/assets-manifest.json",

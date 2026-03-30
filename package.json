@@ -17,6 +17,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
+    "validate:assets": "node scripts/validate-assets.js",
     "prepare": "husky install"
   },
   "keywords": [],

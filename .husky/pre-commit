@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-commit checks for code quality
+echo "🔍 Running pre-commit checks..."
+
+# 1. Run linter
+echo "  → ESLint..."
+npm run lint || {
+  echo "❌ Linting failed. Fix errors before committing."
+  exit 1
+}
+
+# 2. Check TypeScript types
+echo "  → TypeScript type check..."
+npm run types || {
+  echo "❌ Type check failed. Fix type errors before committing."
+  exit 1
+}
+
+# 3. Check code formatting
+echo "  → Prettier format check..."
+npm run format:check || {
+  echo "❌ Code formatting issues detected. Run 'npm run format' to fix."
+  exit 1
+}
+
+# 4. (Optional) Validate asset sizes
+# Uncomment the lines below to enforce asset size limits on every commit.
+# This is disabled by default to avoid slowing down commits during active development.
+# You can run "npm run validate:assets" manually when adding/updating assets.
+#
+# echo "  → Validating asset sizes..."
+# npm run validate:assets || {
+#   echo "⚠️  Asset size validation failed. Large assets detected."
+#   echo "   Review the assets or run 'npm run assets' to recompress."
+#   echo "   To skip this check, comment out the validation in .husky/pre-commit"
+#   exit 1
+# }
+
+echo "✅ All pre-commit checks passed!"

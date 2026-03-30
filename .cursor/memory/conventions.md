@@ -14,6 +14,90 @@
 - **No hardcoded URLs**: URLs come from `PARTNER_SPECIFIC_CONFIG` in `src/network/constants.ts` or env vars
 - **No inline SVG / large string literals**: move to asset files or dedicated data modules
 
+## Asset Management
+
+### Compression Standards
+
+All assets are automatically compressed via `@assetpack/core` during the build process (`npm run assets`). The build pipeline enforces these quality settings to balance file size and visual fidelity:
+
+| Format | Quality | Rationale |
+|--------|---------|-----------|
+| **PNG** | 90 | Lossless compression + palette optimization; maintains transparency; ideal for UI elements, sprites, logos |
+| **JPG** | 85 | Lossy compression visually identical to original; 50-70% smaller; ideal for photos, backgrounds |
+| **WebP** | 85 | Modern format with best compression; 25-35% smaller than JPG at same quality; supports transparency; ideal for all web assets |
+| **AVIF** | Disabled | Not yet widely supported in WebView environments |
+
+**Do not commit uncompressed or max-quality (100) assets.** The assetpack pipeline automatically handles compression.
+
+### Asset Workflow
+
+```
+1. Add raw asset → raw-assets-{partner}/ (source files, any quality)
+2. Run: npm run assets (invokes assetpack with compression)
+3. Output: public/assets/ (optimized, ready for production)
+4. Git: Commit both raw source + optimized output
+```
+
+**Pre-build hook**: `npm run prebuild` runs `npm run assets` automatically, so you don't need to remember.
+
+### File Format Guidelines
+
+| Asset Type | Recommended Format | Max Dimensions | Notes |
+|------------|-------------------|----------------|-------|
+| UI sprites (buttons, icons) | PNG or WebP | 512×512 | Use texture atlases; assetpack creates sprite sheets automatically |
+| Backgrounds | JPG or WebP | 2048×2048 | Use WebP when transparency is needed |
+| Logos with transparency | PNG or WebP | 512×512 | PNG for compatibility, WebP for size |
+| Lottie animations | JSON | — | Already vector-based; no raster compression needed |
+| Profile pictures (from CDN) | WebP | 256×256 | Served from CloudFront, not in repo |
+
+### Texture Atlas Generation
+
+Assetpack automatically creates sprite sheets from directories in `raw-assets-{partner}/`:
+
+- Place related sprites in the same folder (e.g., `raw-assets-em/ui-buttons/`)
+- Assetpack generates: `public/assets/ui-buttons.json` + `ui-buttons.png`
+- Load in code: `PIXI.Assets.load('ui-buttons')` then access via alias
+
+**Do not** load individual images in production — always use atlases for batch rendering.
+
+### Asset Size Limits
+
+| Asset Type | Max File Size (After Compression) | Action if Exceeded |
+|------------|-----------------------------------|---------------------|
+| Single sprite | 200 KB | Split into smaller parts or reduce dimensions |
+| Background image | 500 KB | Use JPG instead of PNG; reduce dimensions; check if WebP helps |
+| Texture atlas (combined) | 1 MB | Split into multiple atlases by feature/screen |
+| Lottie JSON | 100 KB | Simplify animation; reduce keyframes; remove unused layers |
+
+### Pre-commit Validation (Optional)
+
+To enforce asset size limits before commit, run:
+
+```bash
+npm run validate:assets
+```
+
+This script checks `public/assets/` for files exceeding size limits and lists violations.
+
+### Partner-Specific Assets
+
+Each white-label partner has its own asset directory:
+
+```
+raw-assets-em/     # Ember
+raw-assets-bt/     # Butr
+raw-assets-gs/     # GamerSaloon
+raw-assets-sp/     # Sparket
+raw-assets-kb/     # Kaboom
+raw-assets-fw/     # FreeWin
+raw-assets-bh/     # BlockHead
+raw-assets-ml/     # MidoLotto
+raw-assets-sd/     # Speed
+raw-assets-ts/     # Toast
+```
+
+**NEVER** mix partner assets in the same folder. Each partner's assets are built separately based on `ASSET_ENTRY_POINT` env var.
+
 ## Naming Conventions
 
 | Entity | Convention | Example |
