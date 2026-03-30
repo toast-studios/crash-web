@@ -29,7 +29,9 @@ import {
   type CrashPlayerActionPayload,
   type RoundOverPayload,
   type CrashActionAckResponse,
+  type CrashGameResultPayload,
 } from "../types/crashGame";
+import { LOBBY_FORMAT, CURRENCY_CODES } from "../types";
 import { Logger } from "../utils/logger";
 import { sfx } from "../utils/audio";
 import { SpaceBackground } from "../ui/SpaceBackground";
@@ -46,6 +48,8 @@ import { ShipSpeedLabel } from "../ui/crash/ShipSpeedLabel";
 import { app } from "../app";
 import { navigation } from "../utils/navigation";
 import { getCurrentGameUserId } from "../network/eventListeners";
+import { CrashResultScreen } from "./CrashResultScreen";
+import { CRASH_TIMING } from "../constants/crashTiming";
 import { InfoPopup } from "../popups/InfoPopup";
 import { ClientEvent } from "../utils/clientEvent";
 import { isMetaFreeWin, isFreeWin } from "../utils/game";
@@ -119,6 +123,7 @@ const PROGRESS_BAR_HEIGHT = 30;
 export class CrashGameScreen extends Container {
   public static assetBundles = ["common", "game"];
 
+  private matchId: string;
   private state: CrashGameSessionState;
   private isReconnection: boolean;
   private animateShow: boolean;
@@ -216,9 +221,89 @@ export class CrashGameScreen extends Container {
     }
   };
 
+  private readonly handleGameResultScreen = async (
+    data: CrashGameResultPayload,
+  ) => {
+    if (this.destroyed) return;
+
+    // Guard: Ignore result events for different matches
+    if (data.matchId !== this.matchId) {
+      Logger.warn(
+        "CrashGameScreen: Ignoring GAME_RESULT_SCREEN for different matchId",
+        { received: data.matchId, expected: this.matchId },
+      );
+      return;
+    }
+
+    Logger.info("CrashGameScreen: GAME_RESULT_SCREEN", data);
+
+    ClientEvent.GameStateChange({ gameState: "ResultScreen" });
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, CRASH_TIMING.ROUND_OVER_RESULT_DELAY_MS),
+    );
+    if (this.destroyed) return;
+
+    await this.hideWithAnimation();
+    if (this.destroyed) return;
+
+    await this.showGameOverOverlay();
+    if (this.destroyed) return;
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, CRASH_TIMING.GAME_OVER_HOLD_DURATION_MS),
+    );
+    if (this.destroyed) return;
+
+    const myPlayerId = this.state.myPlayerId ?? "";
+    const isWinner = data.winnerId === myPlayerId;
+    const isLoser = data.looserId === myPlayerId;
+
+    this.buildAndSendGameEndedEvent(data, myPlayerId, isWinner, isLoser);
+    ClientEvent.GameClose();
+
+    const onNextRound =
+      isFreeWin() || CURRENT_PARTNER === PARTNER_ID.bt
+        ? () => navigation.closeWebView()
+        : () => navigation.goBackToLobby(true);
+
+    if (API_CONSTANTS.GAME_MODES !== GAME_MODES.PLAYABLE) {
+      Logger.info(
+        "CrashGameScreen: skipping CrashResultScreen (non-playable mode)",
+        { gameMode: API_CONSTANTS.GAME_MODES },
+      );
+      if (API_CONSTANTS.GAME_MODES === GAME_MODES.PRACTICE) {
+        navigation.closeWebView();
+      } else {
+        onNextRound();
+      }
+      return;
+    }
+
+    try {
+      await navigation.showScreen(CrashResultScreen, {
+        matchId: data.matchId,
+        yourRank: data.yourRank,
+        yourPrize: data.yourPrize,
+        yourSurvivalTime: data.yourSurvivalTime,
+        players: data.players,
+        myPlayerId,
+        didWin: isWinner,
+        onNextRound,
+      });
+    } catch (error) {
+      Logger.error(
+        "CrashGameScreen: error navigating to CrashResultScreen",
+        error,
+        data,
+      );
+    }
+  };
+
   constructor(options: CrashGameScreenOptions) {
     super();
 
+    this.matchId = options.matchId;
     this.isReconnection = options.isReconnection;
     this.animateShow = !options.isReconnection;
 
@@ -382,6 +467,136 @@ export class CrashGameScreen extends Container {
     if (this.trail && !this.trail.destroyed) {
       this.trail.alpha = 0;
     }
+  }
+
+  /**
+   * Animates all HUD components off-screen in parallel before the game-over sequence.
+   * Uses only translation and scale (GPU-accelerated). Resolves in ~0.4s.
+   */
+  public hideWithAnimation(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const screenHeight = app.renderer.height;
+      const dashboardSlideDistance =
+        screenHeight - this.dashboardContainer.y + 50;
+
+      const lottieContainer = this.spaceshipLottie.getContainerElement();
+
+      const tl = gsap.timeline({ onComplete: resolve });
+
+      // Dashboard slides down off the bottom edge
+      tl.to(
+        this.dashboardContainer,
+        { y: `+=${dashboardSlideDistance}`, duration: 0.4, ease: "power2.in" },
+        0,
+      );
+
+      // Logo slides up and fades
+      tl.to(
+        this.logo,
+        { y: `-=80`, alpha: 0, duration: 0.35, ease: "power2.in" },
+        0,
+      );
+
+      // Cross button slides up and fades
+      tl.to(
+        this.crossButton,
+        { y: `-=60`, alpha: 0, duration: 0.3, ease: "power2.in" },
+        0,
+      );
+
+      // Player count header slides left and fades
+      tl.to(
+        this.playerCountHeader,
+        { x: `-=100`, alpha: 0, duration: 0.35, ease: "power2.in" },
+        0,
+      );
+
+      // Feed slides left and fades
+      tl.to(
+        this.feed,
+        { x: `-=130`, alpha: 0, duration: 0.35, ease: "power2.in" },
+        0,
+      );
+
+      // Ship speed label scales to zero and fades
+      tl.to(this.shipSpeedLabel.scale, { x: 0, y: 0, duration: 0.3 }, 0);
+      tl.to(
+        this.shipSpeedLabel,
+        { alpha: 0, duration: 0.3, ease: "power2.in" },
+        0,
+      );
+
+      // Trail fades out
+      if (this.trail && !this.trail.destroyed) {
+        tl.to(this.trail, { alpha: 0, duration: 0.4, ease: "power2.in" }, 0);
+      }
+
+      // Spaceship lottie DOM element scales and fades out
+      if (lottieContainer) {
+        tl.to(
+          lottieContainer,
+          { scale: 0, opacity: 0, duration: 0.35, ease: "power2.in" },
+          0,
+        );
+      }
+    });
+  }
+
+  /**
+   * Animates the GAME OVER sprite with a two-stage bounce: 0 → overshoot → final scale.
+   * SpaceBackground remains visible underneath.
+   */
+  private showGameOverOverlay(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (this.destroyed) {
+        resolve();
+        return;
+      }
+
+      const { width, height } = app.renderer;
+
+      const gameOverSprite = Sprite.from(CRASH_ASSETS.GAME_OVER);
+      gameOverSprite.anchor.set(0.5);
+      gameOverSprite.x = width / 2;
+      gameOverSprite.y = height / 2;
+      // Keep GAME OVER art responsive so it always fits on screen.
+      const spriteWidth = Math.max(gameOverSprite.width, 1);
+      const spriteHeight = Math.max(gameOverSprite.height, 1);
+      const maxWidthScale = (width * 0.78) / spriteWidth;
+      const maxHeightScale = (height * 0.4) / spriteHeight;
+      const finalScale = Math.min(maxWidthScale, maxHeightScale, 1);
+      const overshootScale = finalScale * 1.15;
+
+      gameOverSprite.scale.set(0);
+      gameOverSprite.alpha = 1;
+      this.addChild(gameOverSprite);
+
+      const tl = gsap.timeline({ onComplete: resolve });
+
+      // Stage 1: Pop from 0 to overshoot
+      tl.to(
+        gameOverSprite.scale,
+        {
+          x: overshootScale,
+          y: overshootScale,
+          duration: 0.4,
+          ease: "power2.out",
+        },
+        0,
+      );
+
+      // Stage 2: Settle from overshoot to final scale
+      tl.to(
+        gameOverSprite.scale,
+        {
+          x: finalScale,
+          y: finalScale,
+          duration: 0.3,
+          ease: "back.out(1.5)",
+        },
+        "+=0",
+      );
+    });
   }
 
   public update(ticker: Ticker): void {
@@ -655,6 +870,73 @@ export class CrashGameScreen extends Container {
   }
 
   /**
+   * Builds and fires the GameEnded ClientEvent for both DUEL and TOURNAMENT formats.
+   * Extracted so the async handler stays readable.
+   */
+  private buildAndSendGameEndedEvent(
+    data: CrashGameResultPayload,
+    myPlayerId: string,
+    isWinner: boolean,
+    isLoser: boolean,
+  ): void {
+    if (data.lobbyFormat === LOBBY_FORMAT.DUEL) {
+      const opponentPlayer = data.players.find((p) => p.id !== myPlayerId);
+
+      ClientEvent.GameEnded({
+        matchId: data.matchId,
+        lobbyFormat: LOBBY_FORMAT.DUEL,
+        gameResult: isWinner ? "player_won" : isLoser ? "player_lost" : "draw",
+        amount: data.yourPrize,
+        user: {
+          username: data.yourUsername,
+          score: data.yourSurvivalTime,
+          profilePicture: data.yourProfilePicture,
+          rank: data.yourRank,
+          winAmount: data.yourPrize,
+          isTie: data.gameEndType === "DRAW",
+        },
+        opponent: {
+          username: opponentPlayer?.username ?? "",
+          score: opponentPlayer?.survivalTime ?? 0,
+          profilePicture: opponentPlayer?.profilePicture ?? "",
+          rank: opponentPlayer?.rank,
+          winAmount: opponentPlayer?.prize,
+          isTie: data.gameEndType === "DRAW",
+        },
+        currencyCode: data.currencyCode as CURRENCY_CODES,
+      });
+    } else if (data.lobbyFormat === LOBBY_FORMAT.TOURNAMENT) {
+      const opponents = data.players
+        .filter((p) => p.id !== myPlayerId)
+        .map((p) => ({
+          username: p.username,
+          score: p.survivalTime,
+          profilePicture: p.profilePicture,
+          rank: p.rank,
+          winAmount: p.prize,
+          isTie: false,
+        }));
+
+      ClientEvent.GameEnded({
+        matchId: data.matchId,
+        lobbyFormat: LOBBY_FORMAT.TOURNAMENT,
+        gameResult: data.yourRank === 1 ? "player_won" : "player_lost",
+        amount: data.yourPrize,
+        user: {
+          username: data.yourUsername,
+          score: data.yourSurvivalTime,
+          profilePicture: data.yourProfilePicture,
+          rank: data.yourRank,
+          winAmount: data.yourPrize,
+          isTie: false,
+        },
+        opponent: opponents,
+        currencyCode: data.currencyCode as CURRENCY_CODES,
+      });
+    }
+  }
+
+  /**
    * Computes the final CSS position where the spaceship lottie's bottom edge
    * should coincide with the trail sprite's top tip, for any screen size / DPR.
    *
@@ -855,6 +1137,10 @@ export class CrashGameScreen extends Container {
       CRASH_EVENTS.ROUND_OVER,
       this.handleRoundOver,
     );
+    socketManager.on<CrashGameResultPayload>(
+      CRASH_EVENTS.GAME_RESULT_SCREEN,
+      this.handleGameResultScreen,
+    );
   }
 
   private stopSocketEventListeners(): void {
@@ -862,6 +1148,10 @@ export class CrashGameScreen extends Container {
     socketManager.off(CRASH_EVENTS.GAME_STATE_SYNC, this.handleGameStateSync);
     socketManager.off(CRASH_EVENTS.PLAYER_ACTION, this.handlePlayerAction);
     socketManager.off(CRASH_EVENTS.ROUND_OVER, this.handleRoundOver);
+    socketManager.off(
+      CRASH_EVENTS.GAME_RESULT_SCREEN,
+      this.handleGameResultScreen,
+    );
   }
 
   private addWebviewListeners(): void {

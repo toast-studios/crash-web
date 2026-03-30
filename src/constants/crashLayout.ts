@@ -19,6 +19,7 @@ export const CRASH_ASSETS = {
   COOL_ICON: "cool_icon",
   SPACE_STARS: "space_stars",
   CRITICAL_BACKGROUND: "critical_background",
+  GAME_OVER: "game_over",
 } as const;
 
 export const CRASH_LAYOUT = {

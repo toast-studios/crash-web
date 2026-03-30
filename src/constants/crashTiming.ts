@@ -4,10 +4,12 @@
 export const CRASH_TIMING = {
   COUNTDOWN_SECONDS: 3,
   STATE_BROADCAST_INTERVAL_MS: 100,
-  ROUND_OVER_RESULT_DELAY_MS: 2000,
+  ROUND_OVER_RESULT_DELAY_MS: 1500,
   /** Delay after `gameResultScreen` before navigating to the result UI. */
   RESULT_SCREEN_NAV_DELAY_MS: 3000,
   TICK_INTERVAL_MS: 50,
+  /** Hold duration after the GAME OVER splash animation before firing GameEnded. */
+  GAME_OVER_HOLD_DURATION_MS: 1000,
 } as const;
 
 export const CRASH_GAME_LIMITS = {

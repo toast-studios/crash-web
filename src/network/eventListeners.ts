@@ -4,21 +4,16 @@ import type {
   GameTableInfoPayload,
   CrashMatchFoundPayload,
   CrashGameConfig,
-  CrashGameResultPayload,
   CrashErrorPayload,
 } from "../types/crashGame";
-import { CRASH_TIMING } from "../constants/crashTiming";
-import { LOBBY_FORMAT, CURRENCY_CODES } from "../types";
 import { Logger } from "../utils/logger";
 import { navigation } from "../utils/navigation";
-import { API_CONSTANTS, CURRENT_PARTNER, PARTNER_ID } from "./constants";
-import { isFreeWin } from "../utils/game";
+import { API_CONSTANTS } from "./constants";
 import { socketManager } from "./SocketManager";
 import { ClientEvent } from "../utils/clientEvent";
 import { sendMessageToApp } from "../scripts/webToAppCommunication.helper";
 import { MatchMakingScreen } from "../screens/NewMatchMakingScreen";
 import { CrashGameScreen } from "../screens/CrashGameScreen";
-import { CrashResultScreen } from "../screens/CrashResultScreen";
 import { InfoPopup } from "../popups/InfoPopup";
 
 let currentGameUserId: string | null = null;
@@ -163,14 +158,13 @@ export const attachEventListeners = () => {
           players: data.players,
           gameStateSync: data.gameStateSync,
         });
-
-        ClientEvent.GameStarted({
-          amount: myPlayer.lobbyDetails?.entryFee ?? 0,
-        });
-
         sendMessageToApp({
           eventName: "close_loader",
           context: { eventRef: "GAME_TABLE_INFO" },
+        });
+
+        ClientEvent.GameStarted({
+          amount: myPlayer.lobbyDetails?.entryFee ?? 0,
         });
       } catch (error) {
         Logger.error(
@@ -187,113 +181,6 @@ export const attachEventListeners = () => {
     (data: CrashMatchFoundPayload) => {
       Logger.info("CRASH MATCH_FOUND", data);
       currentGameUserId = data.yourGameUserId;
-    },
-  );
-
-  socketManager.on<CrashGameResultPayload>(
-    CRASH_EVENTS.GAME_RESULT_SCREEN,
-    async (data: CrashGameResultPayload) => {
-      Logger.info("GAME_RESULT_SCREEN", data);
-
-      const myPlayerId = currentGameUserId ?? "";
-      const isWinner = data.winnerId === myPlayerId;
-      const isLoser = data.looserId === myPlayerId;
-
-      ClientEvent.GameStateChange({ gameState: "ResultScreen" });
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, CRASH_TIMING.ROUND_OVER_RESULT_DELAY_MS);
-      });
-
-      // Build GameEndedContext based on lobby format
-      if (data.lobbyFormat === LOBBY_FORMAT.DUEL) {
-        const opponentPlayer = data.players.find((p) => p.id !== myPlayerId);
-
-        ClientEvent.GameEnded({
-          matchId: data.matchId,
-          lobbyFormat: LOBBY_FORMAT.DUEL,
-          gameResult: isWinner
-            ? "player_won"
-            : isLoser
-              ? "player_lost"
-              : "draw",
-          amount: data.yourPrize,
-          user: {
-            username: data.yourUsername,
-            score: data.yourSurvivalTime,
-            profilePicture: data.yourProfilePicture,
-            rank: data.yourRank,
-            winAmount: data.yourPrize,
-            isTie: data.gameEndType === "DRAW",
-          },
-          opponent: {
-            username: opponentPlayer?.username ?? "",
-            score: opponentPlayer?.survivalTime ?? 0,
-            profilePicture: opponentPlayer?.profilePicture ?? "",
-            rank: opponentPlayer?.rank,
-            winAmount: opponentPlayer?.prize,
-            isTie: data.gameEndType === "DRAW",
-          },
-          currencyCode: data.currencyCode as CURRENCY_CODES,
-        });
-      } else if (data.lobbyFormat === LOBBY_FORMAT.TOURNAMENT) {
-        const opponents = data.players
-          .filter((p) => p.id !== myPlayerId)
-          .map((p) => ({
-            username: p.username,
-            score: p.survivalTime,
-            profilePicture: p.profilePicture,
-            rank: p.rank,
-            winAmount: p.prize,
-            isTie: false,
-          }));
-
-        ClientEvent.GameEnded({
-          matchId: data.matchId,
-          lobbyFormat: LOBBY_FORMAT.TOURNAMENT,
-          gameResult: data.yourRank === 1 ? "player_won" : "player_lost",
-          amount: data.yourPrize,
-          user: {
-            username: data.yourUsername,
-            score: data.yourSurvivalTime,
-            profilePicture: data.yourProfilePicture,
-            rank: data.yourRank,
-            winAmount: data.yourPrize,
-            isTie: false,
-          },
-          opponent: opponents,
-          currencyCode: data.currencyCode as CURRENCY_CODES,
-        });
-      }
-
-      ClientEvent.GameClose();
-
-      try {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, CRASH_TIMING.RESULT_SCREEN_NAV_DELAY_MS);
-        });
-
-        const onNextRound =
-          isFreeWin() || CURRENT_PARTNER === PARTNER_ID.bt
-            ? () => navigation.closeWebView()
-            : () => navigation.goBackToLobby(true);
-
-        await navigation.showScreen(CrashResultScreen, {
-          matchId: data.matchId,
-          yourRank: data.yourRank,
-          yourPrize: data.yourPrize,
-          yourSurvivalTime: data.yourSurvivalTime,
-          players: data.players,
-          myPlayerId,
-          didWin: isWinner,
-          onNextRound,
-        });
-      } catch (error) {
-        Logger.error(
-          "Error on showScreen CrashResultScreen event GAME_RESULT_SCREEN",
-          error,
-          data,
-        );
-      }
     },
   );
 

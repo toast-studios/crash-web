@@ -2,10 +2,10 @@ import * as Sentry from "@sentry/browser";
 
 export const initSentry = () => {
   Sentry.init({
-    dsn: "https://5a4df858e2d06e9f7783bf0f62cf4040@o4507412151205888.ingest.us.sentry.io/4508086884237312",
+    dsn: import.meta.env.VITE_SENTRY_DSN,
 
     // Use VITE_WEB_VERSION from environment variables
-    release: `blackjack@${import.meta.env.VITE_WEB_VERSION || "1.0.0"}`,
+    release: `crash@${import.meta.env.VITE_WEB_VERSION || "1.0.0"}`,
     environment: import.meta.env.VITE_GAME_ENVIRONMENT || "staging", // ! TODO: change to production
     integrations: [
       // Keep the Replay integration as before
