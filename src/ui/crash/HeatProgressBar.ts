@@ -98,6 +98,7 @@ export class HeatProgressBar extends Container {
   private progress = 100;
   private currentZone: HeatZone = "green";
   private fillQuickTo: gsap.QuickToFunc;
+  private isFrozen = false;
 
   private readonly barWidth: number;
   private readonly barHeight: number;
@@ -237,6 +238,7 @@ export class HeatProgressBar extends Container {
 
   /** Update the heat fill (0–100). Only translates fillGroup.x — no Graphics redraw. */
   public setProgress(percent: number): void {
+    if (this.isFrozen) return;
     this.progress = Math.max(0, Math.min(100, percent));
 
     // Visual fill stops advancing at CRITICAL_THRESHOLD even if progress keeps climbing
@@ -271,6 +273,37 @@ export class HeatProgressBar extends Container {
 
   public getBarHeight(): number {
     return this.barHeight;
+  }
+
+  /**
+   * Freezes the heat meter at its current value. Incoming setProgress calls are
+   * ignored while frozen. The stripe shimmer pauses and the fill dims slightly
+   * to signal that the meter is waiting on a server verdict.
+   */
+  public freeze(): void {
+    if (this.isFrozen) return;
+    this.isFrozen = true;
+    this.stripeTween?.pause();
+    gsap.to(this.fillContainer, {
+      alpha: 0.7,
+      duration: 0.2,
+      ease: "power2.out",
+    });
+  }
+
+  /**
+   * Unfreezes the heat meter so it responds to setProgress again. Resumes the
+   * stripe shimmer and restores normal fill opacity.
+   */
+  public unfreeze(): void {
+    if (!this.isFrozen) return;
+    this.isFrozen = false;
+    this.stripeTween?.resume();
+    gsap.to(this.fillContainer, {
+      alpha: 1,
+      duration: 0.2,
+      ease: "power2.out",
+    });
   }
 
   public destroy(options?: DestroyOptions): void {

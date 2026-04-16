@@ -10,6 +10,12 @@ export const CRASH_TIMING = {
   TICK_INTERVAL_MS: 50,
   /** Hold duration after the GAME OVER splash animation before firing GameEnded. */
   GAME_OVER_HOLD_DURATION_MS: 1000,
+  /** Fade duration for the "Exiting..." label (show/hide). */
+  EXIT_PENDING_LABEL_FADE_MS: 200,
+  /** How long the "Too Late!" overlay stays visible before fading out. */
+  TOO_LATE_DISPLAY_DURATION_MS: 1500,
+  /** Bounce animation duration for the "Too Late!" overlay entrance. */
+  TOO_LATE_BOUNCE_DURATION_S: 0.4,
 } as const;
 
 export const CRASH_GAME_LIMITS = {

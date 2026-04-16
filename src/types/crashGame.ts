@@ -16,6 +16,12 @@ export type CrashActionType = "cool" | "boost" | "exit_ship";
 
 export type CrashFeedActionType = "cool" | "boost" | "exit" | "bust";
 
+export type ExitUxState =
+  | "none"
+  | "exit_pending"
+  | "exit_success"
+  | "exit_failed";
+
 // --- Core Game Models ---
 
 export interface CrashPlayer {
@@ -167,6 +173,7 @@ export interface CrashErrorPayload {
 
 export interface CrashActionPayload {
   action: "cool" | "boost" | "exit_ship";
+  exitTime?: number;
 }
 
 export interface CrashActionAckResponse {
@@ -202,6 +209,19 @@ export class CrashGameSessionState {
 
   heatDeltaEvent: { delta: number; id: string } | null = null;
 
+  /**
+   * Client-side count of cool actions sent (including in-flight).
+   * Used to prevent gameStateSync from overwriting optimistic decrements
+   * with stale server data during rapid button presses.
+   */
+  optimisticCoolCount = 0;
+  optimisticBoostCount = 0;
+
+  clockOffset = 0;
+  gameStartTime = 0;
+  exitUxState: ExitUxState = "none";
+  pendingRoundOverSync: GameStateSyncPayload | null = null;
+
   constructor(init?: {
     gameConfig: CrashGameConfig;
     myPlayerId: string | null;
@@ -224,6 +244,8 @@ export class CrashGameSessionState {
     this.boostMaxUses = payload.gameConfig.boostMaxUses;
     this.coolUsesLeft = payload.gameConfig.coolMaxUses;
     this.boostUsesLeft = payload.gameConfig.boostMaxUses;
+    this.optimisticCoolCount = 0;
+    this.optimisticBoostCount = 0;
     this.phase = "lobby";
     this.heat = 0;
     this.velocity = 0;
@@ -232,16 +254,21 @@ export class CrashGameSessionState {
 
   applyGameStart(payload: GameStartPayload): void {
     this.phase = "running";
+    this.gameStartTime = payload.gameStartTime;
     this.heat = payload.initialHeat;
     this.velocity = payload.initialVelocity;
     this.coolMaxUses = payload.coolMaxUses;
     this.boostMaxUses = payload.boostMaxUses;
     this.coolUsesLeft = payload.coolMaxUses;
     this.boostUsesLeft = payload.boostMaxUses;
+    this.optimisticCoolCount = 0;
+    this.optimisticBoostCount = 0;
     this.shipSpeed = 0;
+    this.computeClockOffset(payload.gameStartTime);
   }
 
   applyGameStateSync(payload: GameStateSyncPayload): void {
+    this.refineClockOffset(payload.serverTime);
     this.phase = payload.phase;
     this.elapsed = payload.elapsed;
     this.heat = payload.heat;
@@ -272,8 +299,20 @@ export class CrashGameSessionState {
       : null;
 
     if (myPlayer) {
-      this.coolUsesLeft = this.coolMaxUses - myPlayer.coolCount;
-      this.boostUsesLeft = this.boostMaxUses - myPlayer.boostCount;
+      // Use the higher of server count vs client optimistic count to prevent
+      // stale syncs from re-enabling buttons during rapid presses.
+      const effectiveCoolCount = Math.max(
+        myPlayer.coolCount,
+        this.optimisticCoolCount,
+      );
+      const effectiveBoostCount = Math.max(
+        myPlayer.boostCount,
+        this.optimisticBoostCount,
+      );
+      this.coolUsesLeft = this.coolMaxUses - effectiveCoolCount;
+      this.boostUsesLeft = this.boostMaxUses - effectiveBoostCount;
+      this.optimisticCoolCount = effectiveCoolCount;
+      this.optimisticBoostCount = effectiveBoostCount;
     }
   }
 
@@ -351,6 +390,31 @@ export class CrashGameSessionState {
     return this.getMyPlayer()?.status === "alive";
   }
 
+  /**
+   * Sets the clock offset unconditionally. Used for the first measurement
+   * (gameStart or reconnection) where there is no prior value to compare.
+   */
+  computeClockOffset(serverTimestamp: number): void {
+    this.clockOffset = serverTimestamp - Date.now();
+  }
+
+  /**
+   * Refines the clock offset only when the new sample is closer to zero
+   * (less latency contamination). Every observed offset equals
+   * `trueOffset - oneWayLatency`, so the maximum (closest to zero) is the
+   * most accurate estimate.
+   */
+  refineClockOffset(serverTimestamp: number): void {
+    const candidate = serverTimestamp - Date.now();
+    if (candidate > this.clockOffset) {
+      this.clockOffset = candidate;
+    }
+  }
+
+  getCorrectedTimestamp(): number {
+    return Date.now() + this.clockOffset;
+  }
+
   reset(): void {
     this.phase = "lobby";
     this.elapsed = 0;
@@ -367,5 +431,11 @@ export class CrashGameSessionState {
     this.yourRank = null;
     this.yourSurvivalTime = 0;
     this.heatDeltaEvent = null;
+    this.optimisticCoolCount = 0;
+    this.optimisticBoostCount = 0;
+    this.clockOffset = 0;
+    this.gameStartTime = 0;
+    this.exitUxState = "none";
+    this.pendingRoundOverSync = null;
   }
 }

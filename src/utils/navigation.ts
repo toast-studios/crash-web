@@ -9,7 +9,7 @@ import { socketManager } from "../network/SocketManager";
 import { apiClient } from "../network/apis";
 import { InfoPopup } from "../popups/InfoPopup";
 import { isFreeWin } from "./game";
-import { ClientEvent } from "./clientEvent";
+import { CLIENT_EVENT, ClientEvent } from "./clientEvent";
 import { sfx } from "./audio";
 import { PARTNER_ID, CURRENT_PARTNER } from "../network/constants";
 // Old import - commented
@@ -261,13 +261,13 @@ class Navigation {
       }
 
       sendMessageToApp({
-        eventName: "quit",
+        eventName: CLIENT_EVENT.QUIT_VIEW,
         context: { error: "close web view", message: error },
       });
     } catch (error) {
       Logger.error("Error closing web view:", error);
       sendMessageToApp({
-        eventName: "quit",
+        eventName: CLIENT_EVENT.QUIT_VIEW,
         context: {
           error: "Failed to close web view",
           message: (error as Error).message,

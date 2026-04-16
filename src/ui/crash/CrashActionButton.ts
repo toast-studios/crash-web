@@ -8,19 +8,22 @@ export interface CrashActionButtonConfig {
   textureAlias: string;
   onPress: () => void;
   maxUses?: number;
+  labelText?: string;
 }
 
 /**
  * Hexagonal action button for the crash game (COOL / HEAT / CASHOUT).
  *
- * The label text is baked into the sprite asset. An optional uses-remaining
- * badge (small circle with a number) is shown above the button when
- * `maxUses` is provided in the config.
+ * For COOL and HEAT the label text is baked into the sprite asset. For CASHOUT,
+ * pass `labelText` in the config to render dynamic text on top of the sprite.
+ * An optional uses-remaining badge (small circle with a number) is shown above
+ * the button when `maxUses` is provided in the config.
  */
 export class CrashActionButton extends ButtonContainer {
   private buttonSprite: Sprite;
   private badge: Graphics | null = null;
   private badgeText: Text | null = null;
+  private labelDisplay: Text | null = null;
   private pressCallback: () => void;
   private _layoutScale: number;
 
@@ -37,6 +40,10 @@ export class CrashActionButton extends ButtonContainer {
 
     if (config.maxUses !== undefined) {
       this.initBadge(config.maxUses);
+    }
+
+    if (config.labelText !== undefined) {
+      this.initLabel(config.labelText);
     }
 
     this.on("pointerdown", this.handlePointerDown);
@@ -70,6 +77,11 @@ export class CrashActionButton extends ButtonContainer {
     this.repositionBadge();
   }
 
+  public setLabelText(text: string): void {
+    if (!this.labelDisplay) return;
+    this.labelDisplay.text = text;
+  }
+
   public destroy(options?: DestroyOptions): void {
     gsap.killTweensOf(this.buttonSprite.scale);
     super.destroy({
@@ -95,6 +107,24 @@ export class CrashActionButton extends ButtonContainer {
     this.badgeText.x = 0;
     this.badgeText.y = -10;
     this.addChild(this.badgeText);
+  }
+
+  private initLabel(text: string): void {
+    this.labelDisplay = new Text({
+      text,
+      style: {
+        fontFamily: FONTS.PRIMARY,
+        fontSize: 20,
+        fontWeight: FONT_WEIGHTS.BOLD,
+        fontStyle: "italic",
+        fill: CRASH_COLORS.CASHOUT_LABEL_TEXT,
+        align: "center",
+      },
+    });
+    this.labelDisplay.anchor.set(0.5);
+    this.labelDisplay.y = 10;
+    this.labelDisplay.x = 2;
+    this.addChild(this.labelDisplay);
   }
 
   // private drawBadgeCircle(): void {

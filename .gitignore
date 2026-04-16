@@ -6,3 +6,5 @@ public/assets
 # Sentry Config File
 .env.sentry-build-plugin
 *.DS_Store
+
+.agents/

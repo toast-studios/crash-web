@@ -1,4 +1,4 @@
-import { Container, Sprite, Ticker, type DestroyOptions } from "pixi.js";
+import { Container, Sprite, Text, Ticker, type DestroyOptions } from "pixi.js";
 import gsap from "gsap";
 import { CRASH_EVENTS, CRASH_ACTIONS, GAME_MODES } from "../constants";
 import {
@@ -59,6 +59,7 @@ import {
   PARTNER_ID,
   PARTNER_SPECIFIC_CONFIG,
 } from "../network/constants";
+import { FONTS, FONT_WEIGHTS } from "../constants/typography";
 
 /** Padding from screen edge for top-left logo and top-right cross button. */
 const TOP_EDGE_PADDING = 10;
@@ -128,7 +129,6 @@ export class CrashGameScreen extends Container {
   private isReconnection: boolean;
   private animateShow: boolean;
   private isReady = false;
-  private optimisticExited = false;
   private hasTriggeredBlast = false;
   private isAnimatingToTrail = false;
   private isCriticalBackgroundVisible = false;
@@ -153,6 +153,7 @@ export class CrashGameScreen extends Container {
   private bubbleEffect: ActionBubbleEffect;
   public spaceshipLottie: LottiePlayer;
   private shipSpeedLabel: ShipSpeedLabel;
+  private tooLateLabel: Text | null = null;
 
   private logoShakeTl: gsap.core.Timeline | null = null;
   private bgShakeTl: gsap.core.Timeline | null = null;
@@ -163,6 +164,21 @@ export class CrashGameScreen extends Container {
 
   private readonly handleGameStateSync = (data: GameStateSyncPayload) => {
     if (this.destroyed) return;
+
+    // Flicker prevention: if we're waiting on an exit verdict and the round
+    // just ended, buffer the sync instead of showing the bust/blast visuals.
+    // The buffered sync is applied once the ack resolves the exit.
+    if (
+      this.state.exitUxState === "exit_pending" &&
+      data.phase === "roundOver"
+    ) {
+      this.state.pendingRoundOverSync = data;
+      Logger.info(
+        "[CrashGameScreen] Buffering roundOver sync — waiting for exit verdict",
+      );
+      return;
+    }
+
     this.state.applyGameStateSync(data);
     this.syncScrollSpeed();
     this.syncShakeEffect();
@@ -199,6 +215,9 @@ export class CrashGameScreen extends Container {
     this.shipSpeedLabel.alpha = 0;
     gsap.killTweensOf(this.shipSpeedLabel);
     this.updateDisplay();
+
+    // Disable cashout button on round over
+    this.cashoutButton.setEnabled(false);
   };
 
   private readonly handleGameStart = (data: GameStartPayload) => {
@@ -236,6 +255,8 @@ export class CrashGameScreen extends Container {
     }
 
     Logger.info("CrashGameScreen: GAME_RESULT_SCREEN", data);
+
+    this.cashoutButton.setEnabled(false);
 
     ClientEvent.GameStateChange({ gameState: "ResultScreen" });
 
@@ -313,6 +334,12 @@ export class CrashGameScreen extends Container {
 
     if (this.isReconnection && options.gameStateSync) {
       this.state.applyGameStateSync(options.gameStateSync);
+      this.state.computeClockOffset(options.gameStateSync.serverTime);
+
+      const myStatus = this.state.getMyPlayer()?.status;
+      if (myStatus === "exited") {
+        this.state.exitUxState = "exit_success";
+      }
     }
 
     this.background = new SpaceBackground();
@@ -379,6 +406,7 @@ export class CrashGameScreen extends Container {
     this.cashoutButton = new CrashActionButton({
       textureAlias: CRASH_ASSETS.CASHOUT_BUTTON,
       onPress: () => this.sendExit(),
+      labelText: "EXIT SHIP",
     });
     this.dashboardContainer.addChild(this.cashoutButton);
 
@@ -460,6 +488,14 @@ export class CrashGameScreen extends Container {
       this.isCriticalBackgroundVisible = false;
       sfx.stop(CRITICAL_AUDIO.PATH);
     }
+
+    // Clean up exit UX elements
+    if (this.tooLateLabel && !this.tooLateLabel.destroyed) {
+      gsap.killTweensOf(this.tooLateLabel);
+      gsap.killTweensOf(this.tooLateLabel.scale);
+    }
+    this.progressBar.unfreeze();
+    this.state.pendingRoundOverSync = null;
 
     gsap.killTweensOf(this);
     gsap.killTweensOf(this.children);
@@ -714,7 +750,9 @@ export class CrashGameScreen extends Container {
     if (!this.state.isMyPlayerAlive() || this.state.coolUsesLeft <= 0) return;
 
     ClientEvent.HapticFeedback("impactMedium");
-    this.state.coolUsesLeft--;
+    this.state.optimisticCoolCount++;
+    this.state.coolUsesLeft =
+      this.state.coolMaxUses - this.state.optimisticCoolCount;
     this.updateDisplay();
 
     socketManager.emit<CrashActionAckResponse>(
@@ -727,7 +765,9 @@ export class CrashGameScreen extends Container {
             "CrashGameScreen: cool action rejected",
             response.message,
           );
-          this.state.coolUsesLeft++;
+          this.state.optimisticCoolCount--;
+          this.state.coolUsesLeft =
+            this.state.coolMaxUses - this.state.optimisticCoolCount;
           this.updateDisplay();
         } else {
           this.bubbleEffect.trigger("cool");
@@ -740,7 +780,9 @@ export class CrashGameScreen extends Container {
     if (!this.state.isMyPlayerAlive() || this.state.boostUsesLeft <= 0) return;
 
     ClientEvent.HapticFeedback("impactMedium");
-    this.state.boostUsesLeft--;
+    this.state.optimisticBoostCount++;
+    this.state.boostUsesLeft =
+      this.state.boostMaxUses - this.state.optimisticBoostCount;
     this.updateDisplay();
 
     socketManager.emit<CrashActionAckResponse>(
@@ -753,7 +795,9 @@ export class CrashGameScreen extends Container {
             "CrashGameScreen: boost action rejected",
             response.message,
           );
-          this.state.boostUsesLeft++;
+          this.state.optimisticBoostCount--;
+          this.state.boostUsesLeft =
+            this.state.boostMaxUses - this.state.optimisticBoostCount;
           this.updateDisplay();
         } else {
           this.bubbleEffect.trigger("heat");
@@ -763,37 +807,35 @@ export class CrashGameScreen extends Container {
   }
 
   public sendExit(): void {
-    if (!this.state.isMyPlayerAlive() || this.optimisticExited) return;
+    if (!this.state.isMyPlayerAlive() || this.state.exitUxState !== "none") {
+      return;
+    }
 
     ClientEvent.HapticFeedback("notificationSuccess");
-    Logger.info(`[CrashGameScreen] 🚪 Sending exit_ship action to server`);
-    this.optimisticExited = true;
+    Logger.info("[CrashGameScreen] Sending exit_ship action to server");
+
+    this.state.exitUxState = "exit_pending";
     this.coolButton.setEnabled(false);
-    this.cashoutButton.setEnabled(false);
     this.heatButton.setEnabled(false);
+    this.showExitingLabel();
+    this.progressBar.freeze();
+
+    const correctedExitTime = this.state.getCorrectedTimestamp();
 
     socketManager.emit<CrashActionAckResponse>(
       CRASH_ACTIONS.CRASH_ACTION,
-      { action: CrashAction.EXIT_SHIP },
+      { action: CrashAction.EXIT_SHIP, exitTime: correctedExitTime },
       (response) => {
         if (this.destroyed) return;
         Logger.info(
-          `[CrashGameScreen] 📨 Server response for exit_ship:`,
+          "[CrashGameScreen] Server response for exit_ship:",
           response,
         );
 
         if (response.error) {
-          Logger.error(
-            "CrashGameScreen: exit action rejected",
-            response.message,
-          );
-          this.optimisticExited = false;
-          this.updateDisplay();
+          this.resolveExitFailed();
         } else {
-          Logger.info(
-            `[CrashGameScreen] 🛑 Exit confirmed by server - keeping flame animation`,
-          );
-          // Keep SPACESHIP_FLAME animation playing after cashout
+          this.resolveExitSuccess();
         }
       },
     );
@@ -801,6 +843,122 @@ export class CrashGameScreen extends Container {
 
   public getState(): Readonly<CrashGameSessionState> {
     return this.state;
+  }
+
+  // --- Exit UX state resolution ---
+
+  private resolveExitSuccess(): void {
+    Logger.info("[CrashGameScreen] Exit confirmed — EXIT_SUCCESS");
+    this.state.exitUxState = "exit_success";
+    this.cashoutButton.setLabelText("EXITED");
+    this.cashoutButton.setEnabled(false);
+    this.progressBar.unfreeze();
+    this.applyBufferedSync();
+    this.updateDisplay();
+  }
+
+  private resolveExitFailed(): void {
+    Logger.info("[CrashGameScreen] Exit too late — EXIT_FAILED");
+    this.state.exitUxState = "exit_failed";
+    this.hideExitingLabel();
+    this.progressBar.unfreeze();
+    ClientEvent.HapticFeedback("notificationError");
+    this.showStatusOverlay("Exit Failed!");
+    this.applyBufferedSync();
+    // If roundOver already set the phase (via handleRoundOver) but blast was
+    // deferred because we were in EXIT_PENDING, trigger it now.
+    this.checkAndTriggerBlast();
+    this.updateDisplay();
+  }
+
+  private applyBufferedSync(): void {
+    const buffered = this.state.pendingRoundOverSync;
+    if (!buffered) return;
+
+    this.state.pendingRoundOverSync = null;
+    this.state.applyGameStateSync(buffered);
+    this.syncScrollSpeed();
+    this.syncShakeEffect();
+    this.syncCriticalBackground();
+    this.checkAndTriggerBlast();
+    this.updateDisplay();
+  }
+
+  private showExitingLabel(): void {
+    this.cashoutButton.setLabelText("EXITING...");
+  }
+
+  private hideExitingLabel(): void {
+    this.cashoutButton.setLabelText("EXIT SHIP");
+  }
+
+  /**
+   * Displays a bounce-in text overlay in the center of the screen, then
+   * auto-fades after TOO_LATE_DISPLAY_DURATION_MS. Uses the same two-stage
+   * bounce pattern as showGameOverOverlay.
+   */
+  private showStatusOverlay(text: string, color: number = 0xff4444): void {
+    if (this.destroyed) return;
+
+    const { width, height } = app.renderer;
+
+    const label = new Text({
+      text,
+      style: {
+        fontFamily: FONTS.PRIMARY,
+        fontSize: 48,
+        fontWeight: FONT_WEIGHTS.BOLD,
+        fill: color,
+        align: "center",
+        stroke: { color: 0x000000, width: 4 },
+        dropShadow: {
+          color: 0x000000,
+          blur: 8,
+          distance: 2,
+          alpha: 0.8,
+        },
+      },
+    });
+    label.anchor.set(0.5);
+    label.x = width / 2;
+    label.y = height / 2;
+    label.scale.set(0);
+    label.alpha = 1;
+    this.addChild(label);
+    this.tooLateLabel = label;
+
+    const finalScale = 1;
+    const overshootScale = finalScale * 1.2;
+    const bounceDur = CRASH_TIMING.TOO_LATE_BOUNCE_DURATION_S;
+    const holdMs = CRASH_TIMING.TOO_LATE_DISPLAY_DURATION_MS;
+
+    const tl = gsap.timeline();
+    tl.to(label.scale, {
+      x: overshootScale,
+      y: overshootScale,
+      duration: bounceDur,
+      ease: "power2.out",
+    });
+    tl.to(label.scale, {
+      x: finalScale,
+      y: finalScale,
+      duration: bounceDur * 0.6,
+      ease: "back.out(1.5)",
+    });
+    tl.to(label, {
+      alpha: 0,
+      duration: 0.4,
+      ease: "power2.in",
+      delay: holdMs / 1000,
+      onComplete: () => {
+        if (!label.destroyed) {
+          label.destroy();
+        }
+        if (this.tooLateLabel === label) {
+          this.tooLateLabel = null;
+        }
+      },
+    });
   }
 
   private handleCrossPress(): void {
@@ -1465,10 +1623,14 @@ export class CrashGameScreen extends Container {
     this.feed.updateMessages(this.state.feedMessages, this.state.players);
     this.shipSpeedLabel.setSpeed(this.getShipSpeedForDisplay());
 
-    const isAlive = this.state.isMyPlayerAlive() && !this.optimisticExited;
+    const isAlive =
+      this.state.isMyPlayerAlive() && this.state.exitUxState === "none";
     const baseEnabled = isAlive && this.state.phase === "running";
     this.coolButton.setEnabled(baseEnabled && this.state.coolUsesLeft > 0);
-    this.cashoutButton.setEnabled(baseEnabled);
+    const cashoutDisabled =
+      this.state.exitUxState === "exit_success" ||
+      this.state.phase === "roundOver";
+    this.cashoutButton.setEnabled(!cashoutDisabled);
     this.heatButton.setEnabled(baseEnabled && this.state.boostUsesLeft > 0);
   }
 
