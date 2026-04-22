@@ -1,0 +1,30 @@
+## Project Overview
+HeatWave PvP (`two-plus-one-jack-web`) is a real-time multiplayer crash game built on PixiJS v8 (WebGL/WebGPU). Players compete in duel (1v1) and tournament formats across 10 white-label partners (Ember, GamerSaloon, Sparket, Kaboom, FreeWin, BlockHead, Butr, MidoLotto, Speed, Toast). The game is served as a WebView embedded inside partner mobile apps and communicates with the host app via a postMessage bridge.
+
+## Tech Stack
+- **Renderer**: PixiJS v8 (`pixi.js` ^8.3.4) — WebGL/WebGPU canvas rendering
+- **Language**: TypeScript (strict mode, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`)
+- **Build**: Vite 5 with EJS templates per game mode
+- **Animation**: GSAP 3 (`gsap` ^3.12.5)
+- **Real-time**: Socket.IO client 4 (`socket.io-client` ^4.7.5)
+- **Audio**: Howler.js via `@pixi/sound` ^6.0.1
+- **HTTP**: Axios ^1.7.7
+- **Error monitoring**: Sentry (`@sentry/browser` ^8.33.1)
+- **Animations**: Lottie Web (`lottie-web` ^5.12.2)
+- **Analytics**: Microsoft Clarity (via `clarity.init.ts`)
+- **Logging**: Custom `Logger` class with IndexedDB persistence + S3 upload (`idb` ^8.0.0)
+- **Auth**: JWT query param (`?at=...`), decoded with `jwt-decode` ^4.0.0
+
+## Memory Files — Always Read These First
+Before making any changes, read the following files for context:
+- Architecture decisions: `.cursor/memory/architecture.md`
+- Current focus: `.cursor/memory/active-context.md`
+- Recent changes: `.cursor/memory/changelog.md`
+- Code conventions: `.cursor/memory/conventions.md`
+
+## Behavior Rules
+- Before making changes, briefly state what you are about to do and why.
+- After completing changes, suggest a 2-3 bullet summary suitable for the changelog.
+- If a requested change seems to conflict with existing architecture or conventions, flag it and ask before proceeding.
+- Do not modify files listed as "Do Not Touch" in active-context.md.
+- Keep responses focused. Avoid re-explaining things already documented in the memory files.

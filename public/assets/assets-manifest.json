@@ -1,0 +1,1042 @@
+{
+  "bundles": [
+    {
+      "name": "default",
+      "assets": []
+    },
+    {
+      "name": "common",
+      "assets": [
+        {
+          "alias": [
+            "common/3_sec_count.wav",
+            "3_sec_count.wav"
+          ],
+          "src": [
+            "common/3_sec_count-zw5B8w.mp3",
+            "common/3_sec_count-5XvIcw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/3_seconds_countdown.wav",
+            "3_seconds_countdown.wav"
+          ],
+          "src": [
+            "common/3_seconds_countdown-ei8W9w.ogg",
+            "common/3_seconds_countdown-4AieZA.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/bgm1_low.wav",
+            "bgm1_low.wav"
+          ],
+          "src": [
+            "common/bgm1_low-hvkgCw.mp3",
+            "common/bgm1_low-hN4w5w.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/bgm1_normal.wav",
+            "bgm1_normal.wav"
+          ],
+          "src": [
+            "common/bgm1_normal-njbcGg.mp3",
+            "common/bgm1_normal-fqpWhA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/bgm2.wav",
+            "bgm2.wav"
+          ],
+          "src": [
+            "common/bgm2-K1gljw.mp3",
+            "common/bgm2-348-pg.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/bust.wav",
+            "bust.wav"
+          ],
+          "src": [
+            "common/bust-qfBXnQ.ogg",
+            "common/bust-NoCwQw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/button-click.mp3",
+            "button-click.mp3"
+          ],
+          "src": [
+            "common/button-click-e1LjMA.ogg",
+            "common/button-click-anArDw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/button-press-beep.wav",
+            "button-press-beep.wav"
+          ],
+          "src": [
+            "common/button-press-beep-8oyiJw.ogg",
+            "common/button-press-beep-48E7.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/cardDeck_screen_enter.wav",
+            "cardDeck_screen_enter.wav"
+          ],
+          "src": [
+            "common/cardDeck_screen_enter-bPetsw.ogg",
+            "common/cardDeck_screen_enter-_s4A9w.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/card_coming_for_deck_for_hit.wav",
+            "card_coming_for_deck_for_hit.wav"
+          ],
+          "src": [
+            "common/card_coming_for_deck_for_hit-yHNSug.ogg",
+            "common/card_coming_for_deck_for_hit-lOyDGQ.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/card_dealt_to_central_pile.wav",
+            "card_dealt_to_central_pile.wav"
+          ],
+          "src": [
+            "common/card_dealt_to_central_pile-KLex.ogg",
+            "common/card_dealt_to_central_pile-88BUkA.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/carnival_bgm.wav",
+            "carnival_bgm.wav"
+          ],
+          "src": [
+            "common/carnival_bgm-nce2Bg.ogg",
+            "common/carnival_bgm-eazbLg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/cash_register_lobby.mp3",
+            "cash_register_lobby.mp3"
+          ],
+          "src": [
+            "common/cash_register_lobby-ucOiRQ.ogg",
+            "common/cash_register_lobby-9p_xog.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/click_on_hit.wav",
+            "click_on_hit.wav"
+          ],
+          "src": [
+            "common/click_on_hit-Zj1GeA.mp3",
+            "common/click_on_hit-5sLATA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/click_on_stand.wav",
+            "click_on_stand.wav"
+          ],
+          "src": [
+            "common/click_on_stand-mfXwWw.mp3",
+            "common/click_on_stand-K7-kJQ.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/coin_drop.mp3",
+            "coin_drop.mp3"
+          ],
+          "src": [
+            "common/coin_drop-snv28w.ogg",
+            "common/coin_drop-g33npw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/column-lose.mp3",
+            "column-lose.mp3"
+          ],
+          "src": [
+            "common/column-lose-GM77.ogg",
+            "common/column-lose-4gXVVA.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/column-win.mp3",
+            "column-win.mp3"
+          ],
+          "src": [
+            "common/column-win-P71dWg.mp3",
+            "common/column-win-Oz7Tmg.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/common-atlas",
+            "common-atlas"
+          ],
+          "src": [
+            "common/common-atlas-Ym3O-0.png.json",
+            "common/common-atlas-leOh1g-0@0.5x.webp.json",
+            "common/common-atlas-fQ0N-0.webp.json",
+            "common/common-atlas-1S8FCg-0@0.5x.png.json"
+          ],
+          "data": {
+            "tags": {
+              "m": true,
+              "tps": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/countdown_timer.wav",
+            "countdown_timer.wav"
+          ],
+          "src": [
+            "common/countdown_timer-HFAheQ.ogg",
+            "common/countdown_timer-4_34KQ.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/counter_less_than_3_timer.mp3",
+            "counter_less_than_3_timer.mp3"
+          ],
+          "src": [
+            "common/counter_less_than_3_timer-iyDXbw.ogg",
+            "common/counter_less_than_3_timer-GoT9hg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/critical_siren.mp3",
+            "critical_siren.mp3"
+          ],
+          "src": [
+            "common/critical_siren-TlLZ7A.ogg",
+            "common/critical_siren-aj-I4Q.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/deal-card.wav",
+            "deal-card.wav"
+          ],
+          "src": [
+            "common/deal-card-PcOvDg.ogg",
+            "common/deal-card-Kr2XfQ.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/drafting_phase_card_flipping.wav",
+            "drafting_phase_card_flipping.wav"
+          ],
+          "src": [
+            "common/drafting_phase_card_flipping-vnMCXg.ogg",
+            "common/drafting_phase_card_flipping-uzmsDg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/draw.mp3",
+            "draw.mp3"
+          ],
+          "src": [
+            "common/draw-oRTb0A.ogg",
+            "common/draw-fcwHlg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/extra_timer.wav",
+            "extra_timer.wav"
+          ],
+          "src": [
+            "common/extra_timer-S14qtw.mp3",
+            "common/extra_timer-Mw6eDg.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/flip-card.mp3",
+            "flip-card.mp3"
+          ],
+          "src": [
+            "common/flip-card-fMAitQ.mp3",
+            "common/flip-card-dtfAaA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/flip_card.mp3",
+            "flip_card.mp3"
+          ],
+          "src": [
+            "common/flip_card-EpUvRQ.mp3",
+            "common/flip_card-0NES1Q.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/full_match_lose.wav",
+            "full_match_lose.wav"
+          ],
+          "src": [
+            "common/full_match_lose-TjlzyA.mp3",
+            "common/full_match_lose-GEe4.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/full_match_win.wav",
+            "full_match_win.wav"
+          ],
+          "src": [
+            "common/full_match_win-SIm_Zw.ogg",
+            "common/full_match_win-kZ87Xg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/game-over.mp3",
+            "game-over.mp3"
+          ],
+          "src": [
+            "common/game-over-omGs4Q.ogg",
+            "common/game-over-26YN2g.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/going_bust.wav",
+            "going_bust.wav"
+          ],
+          "src": [
+            "common/going_bust-YkXZ8g.ogg",
+            "common/going_bust-xJ3r2Q.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/hit.wav",
+            "hit.wav"
+          ],
+          "src": [
+            "common/hit-SWIYRw.ogg",
+            "common/hit-9NLxvg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/losing_a_lane.wav",
+            "losing_a_lane.wav"
+          ],
+          "src": [
+            "common/losing_a_lane-UdK9dg.mp3",
+            "common/losing_a_lane-TceZgw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/losing_the_game.wav",
+            "losing_the_game.wav"
+          ],
+          "src": [
+            "common/losing_the_game-oLGLiQ.ogg",
+            "common/losing_the_game-hqYnxg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/move-deck.mp3",
+            "move-deck.mp3"
+          ],
+          "src": [
+            "common/move-deck-reaX9w.mp3",
+            "common/move-deck-ajZjWA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/moving_to_next_lane.wav",
+            "moving_to_next_lane.wav"
+          ],
+          "src": [
+            "common/moving_to_next_lane-TtW-ZQ.mp3",
+            "common/moving_to_next_lane-nxAL7A.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/opponent_profile_pops.wav",
+            "opponent_profile_pops.wav"
+          ],
+          "src": [
+            "common/opponent_profile_pops-zNao7A.ogg",
+            "common/opponent_profile_pops-iG159Q.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/phase-one-complete.mp3",
+            "phase-one-complete.mp3"
+          ],
+          "src": [
+            "common/phase-one-complete-vqO0tA.ogg",
+            "common/phase-one-complete-v8mASQ.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/pick-card.mp3",
+            "pick-card.mp3"
+          ],
+          "src": [
+            "common/pick-card-H9CfdQ.ogg",
+            "common/pick-card-5Q4U.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/play_button_click.wav",
+            "play_button_click.wav"
+          ],
+          "src": [
+            "common/play_button_click-orDwFA.mp3",
+            "common/play_button_click-KHf0Xg.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/player_time_about_to_expire.wav",
+            "player_time_about_to_expire.wav"
+          ],
+          "src": [
+            "common/player_time_about_to_expire-TH48eg.mp3",
+            "common/player_time_about_to_expire-rQfMiw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/round_lose.wav",
+            "round_lose.wav"
+          ],
+          "src": [
+            "common/round_lose-wlaszg.mp3",
+            "common/round_lose-4BtHIA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/round_win.wav",
+            "round_win.wav"
+          ],
+          "src": [
+            "common/round_win-LY1pCg.mp3",
+            "common/round_win--Lokiw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/select_lobby_bet.mp3",
+            "select_lobby_bet.mp3"
+          ],
+          "src": [
+            "common/select_lobby_bet-ovRsAw.mp3",
+            "common/select_lobby_bet-9c--3Q.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/sfx-hover.wav",
+            "sfx-hover.wav"
+          ],
+          "src": [
+            "common/sfx-hover-9jANww.mp3",
+            "common/sfx-hover--y8PIw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/sfx-press.wav",
+            "sfx-press.wav"
+          ],
+          "src": [
+            "common/sfx-press-IyzB5g.mp3",
+            "common/sfx-press-eiPS3w.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/stand.wav",
+            "stand.wav"
+          ],
+          "src": [
+            "common/stand-yEcEHw.mp3",
+            "common/stand-MMtLmw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/transition_to_gameplay_phase_.wav",
+            "transition_to_gameplay_phase_.wav"
+          ],
+          "src": [
+            "common/transition_to_gameplay_phase_-IgnDaA.ogg",
+            "common/transition_to_gameplay_phase_--_3d3Q.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/turn-start-new.wav",
+            "turn-start-new.wav"
+          ],
+          "src": [
+            "common/turn-start-new-Nc6BkA.mp3",
+            "common/turn-start-new-jks-nw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/turn-start-old.mp3",
+            "turn-start-old.mp3"
+          ],
+          "src": [
+            "common/turn-start-old-WHivGg.ogg",
+            "common/turn-start-old-eahiwA.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/turn-start.wav",
+            "turn-start.wav"
+          ],
+          "src": [
+            "common/turn-start-gyfGxA.ogg",
+            "common/turn-start-EgPgvw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/user_puts_card_in_one_of_the_slots.wav",
+            "user_puts_card_in_one_of_the_slots.wav"
+          ],
+          "src": [
+            "common/user_puts_card_in_one_of_the_slots-YnYOoA.mp3",
+            "common/user_puts_card_in_one_of_the_slots-myhCVw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/winner-bell.mp3",
+            "winner-bell.mp3"
+          ],
+          "src": [
+            "common/winner-bell-kg8mVg.mp3",
+            "common/winner-bell-beFNOA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/winning_a_lane.wav",
+            "winning_a_lane.wav"
+          ],
+          "src": [
+            "common/winning_a_lane-UynO.mp3",
+            "common/winning_a_lane-356KHA.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/winning_the_game.wav",
+            "winning_the_game.wav"
+          ],
+          "src": [
+            "common/winning_the_game-U4DWzA.mp3",
+            "common/winning_the_game-30k6Ig.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/you-lose.mp3",
+            "you-lose.mp3"
+          ],
+          "src": [
+            "common/you-lose-IH_gRg.ogg",
+            "common/you-lose-EQF6Hw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/you-win.mp3",
+            "you-win.mp3"
+          ],
+          "src": [
+            "common/you-win-OXTcmQ.ogg",
+            "common/you-win-Keklwg.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/you_lose.mp3",
+            "you_lose.mp3"
+          ],
+          "src": [
+            "common/you_lose-UedeIQ.ogg",
+            "common/you_lose-dYgMOw.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "common/you_win_loud.mp3",
+            "you_win_loud.mp3"
+          ],
+          "src": [
+            "common/you_win_loud-W0Y4RA.mp3",
+            "common/you_win_loud-2TTz.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ftue",
+      "assets": [
+        {
+          "alias": [
+            "ftue/beat_your_opponent_without_busting_going_over_21_to_win_the_match_up.wav",
+            "beat_your_opponent_without_busting_going_over_21_to_win_the_match_up.wav"
+          ],
+          "src": [
+            "ftue/beat_your_opponent_without_busting_going_over_21_to_win_the_match_up-kvgA.mp3",
+            "ftue/beat_your_opponent_without_busting_going_over_21_to_win_the_match_up-kIbOIw.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "ftue/finish_your_setup.wav",
+            "finish_your_setup.wav"
+          ],
+          "src": [
+            "ftue/finish_your_setup-slaA7A.mp3",
+            "ftue/finish_your_setup-6ZtdvQ.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "ftue/opponent_gets_same_card.wav",
+            "opponent_gets_same_card.wav"
+          ],
+          "src": [
+            "ftue/opponent_gets_same_card-J9cZYw.ogg",
+            "ftue/opponent_gets_same_card-9RTFpQ.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "ftue/tap_on_empty_slot.wav",
+            "tap_on_empty_slot.wav"
+          ],
+          "src": [
+            "ftue/tap_on_empty_slot-TphU.ogg",
+            "ftue/tap_on_empty_slot-JbYtbA.mp3"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        },
+        {
+          "alias": [
+            "ftue/win_2_out_of_3_columns_to_win_the_game.wav",
+            "win_2_out_of_3_columns_to_win_the_game.wav"
+          ],
+          "src": [
+            "ftue/win_2_out_of_3_columns_to_win_the_game-YTF8.mp3",
+            "ftue/win_2_out_of_3_columns_to_win_the_game-c9TH5g.ogg"
+          ],
+          "data": {
+            "tags": {
+              "m": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "game",
+      "assets": [
+        {
+          "alias": [
+            "game/game-atlas",
+            "game-atlas"
+          ],
+          "src": [
+            "game/game-atlas-X7CsEQ@0.5x.png.json",
+            "game/game-atlas-soFxMQ@0.5x.webp.json",
+            "game/game-atlas-2rBqLA.webp.json",
+            "game/game-atlas-_YNq5A.png.json"
+          ],
+          "data": {
+            "tags": {
+              "m": true,
+              "tps": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "player-profile",
+      "assets": [
+        {
+          "alias": [
+            "player-profile/player-profile-atlas",
+            "player-profile-atlas"
+          ],
+          "src": [
+            "player-profile/player-profile-atlas-jYYwfA.png.json",
+            "player-profile/player-profile-atlas-hDGj4A@0.5x.png.json",
+            "player-profile/player-profile-atlas-guCEfw@0.5x.webp.json",
+            "player-profile/player-profile-atlas--Zoj.webp.json"
+          ],
+          "data": {
+            "tags": {
+              "m": true,
+              "tps": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

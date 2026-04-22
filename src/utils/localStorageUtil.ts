@@ -1,0 +1,38 @@
+export enum LOCAL_STORAGE_KEYS {
+  IS_ON_BOARDING = "IS_ON_BOARDING",
+  AUTH_TOKEN = "AUTH_TOKEN",
+  REFRESH_TOKEN = "REFRESH_TOKEN",
+  USER_ID = "USER_ID",
+  SESSION_ID = "SESSION_ID",
+  IS_FREEWIN = "IS_FREEWIN",
+  IS_META_FREEWIN = "IS_META_FREEWIN",
+  PLAY_USER_EMAIL = "PLAY_USER_EMAIL",
+  OLD_SESSIONS = "OLD_SESSIONS",
+  IS_DRAG_ENABLED = "IS_DRAG_ENABLED",
+  DEFAULT_COIN_LOBBY_ID = "DEFAULT_COIN_LOBBY_ID",
+  BLACKJACK_GAME_COUNTER = "blackjack_game_counter",
+  LAST_LOBBY_FORMAT = "LAST_LOBBY_FORMAT",
+  LAST_LOBBY_ID_DUEL = "LAST_LOBBY_ID_DUEL",
+  LAST_LOBBY_ID_TOURNAMENT = "LAST_LOBBY_ID_TOURNAMENT",
+  QUERY_LOBBY_FORMAT = "QUERY_LOBBY_FORMAT",
+  TOURNAMENT_GAMES_PLAYED = "TOURNAMENT_GAMES_PLAYED",
+  PLAYER_PROFILE_PICTURE = "PLAYER_PROFILE_PICTURE",
+  OPPONENT_PROFILE_PICTURE = "OPPONENT_PROFILE_PICTURE",
+}
+
+const localStorageUtil = {
+  getItem: (key: LOCAL_STORAGE_KEYS) => {
+    return localStorage.getItem(key);
+  },
+  setItem: (key: LOCAL_STORAGE_KEYS, value: string) => {
+    localStorage.setItem(key, value);
+  },
+  removeItem: (key: LOCAL_STORAGE_KEYS) => {
+    localStorage.removeItem(key);
+  },
+  reset: () => {
+    localStorage.clear();
+  },
+};
+
+export { localStorageUtil };

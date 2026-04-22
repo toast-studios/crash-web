@@ -1,0 +1,163 @@
+---
+description: Project coding standards and conventions
+alwaysApply: true
+---
+
+# Project rules
+
+## Project Overview
+This is a PixiJS v8 WebGL/WebGPU rendering project. All canvas rendering is done via PixiJS. TypeScript is preferred.
+
+---
+
+## Tech Stack
+- **Renderer**: PixiJS v8 (`pixi.js`)
+- **Language**: TypeScript (strict mode)
+- **Build**: Vite
+- **Audio** (if applicable): Howler.js
+- **Physics** (if applicable): Matter.js or Rapier
+- **State**: Custom event emitter or Zustand (no React unless explicitly mixing)
+
+---
+
+## Code Style & Architecture
+
+### General
+- Use TypeScript with strict types. Avoid `any`.
+- Prefer `class`-based scene objects that extend or compose `PIXI.Container`.
+- One class per file. Group related files in feature folders.
+- Export one primary class/function per module.
+- Use Logger.info instead of console.log and Logger.error instead of console.error, try to use Logger class instead of standard console.
+
+### PixiJS Patterns
+- Always initialize via `const app = new PIXI.Application()` and `await app.init({...})`.
+- Use `PIXI.Assets.load()` for all asset loading — never use raw `new PIXI.Texture()` from URLs directly.
+- Preload assets in a dedicated `AssetLoader` class before scene creation.
+- Use `PIXI.Ticker` for game loops, not `requestAnimationFrame` directly.
+- Prefer `app.ticker.add((ticker) => { const delta = ticker.deltaTime; })` — always use `deltaTime` for frame-rate-independent logic.
+- Destroy unused objects: always call `.destroy({ children: true })` when removing containers.
+- Use `PIXI.Container` as scene root — never add sprites directly to `app.stage` except for the top-level scene container.
+
+### Scene Management
+- Implement a `SceneManager` singleton that handles scene transitions.
+- Each scene is a class extending `PIXI.Container` with `init()`, `update(delta)`, `pause()`, `resume()`, and `destroy()` lifecycle methods.
+- Scenes should not reference each other directly — communicate via events or the SceneManager.
+
+```ts
+// Example Scene structure
+export class GameScene extends PIXI.Container {
+  private ticker: PIXI.Ticker;
+  
+  async init() { /* load assets, build display list */ }
+  update(delta: number) { /* per-frame logic */ }
+  destroy(options?: PIXI.DestroyOptions) {
+    this.ticker.remove(this.update, this);
+    super.destroy({ children: true, ...options });
+  }
+}
+```
+
+### Performance
+- **Sprite Batching**: Group sprites using the same texture/atlas into the same container. PixiJS batches draw calls by texture automatically.
+- **Texture Atlases**: Always use sprite sheets (TexturePacker or Shoebox). Never load individual images in production.
+- **Object Pooling**: Pool frequently created/destroyed objects (bullets, particles, UI notifications).
+- **Culling**: Set `sprite.renderable = false` for off-screen objects; don't just set `visible = false` if the object count is high.
+- **Avoid per-frame allocations**: Never create `new PIXI.Point()` or `new PIXI.Rectangle()` inside `update()`. Pre-allocate and reuse.
+- **Filters**: Use `PIXI.Filter` sparingly. Cache filtered containers with `container.cacheAsTexture(true)` if they don't change often.
+- **Resolution**: Set `app.renderer.resolution = window.devicePixelRatio` for sharp rendering on HiDPI screens.
+
+### Display List
+- Maintain a clear layer order. Define layer containers explicitly:
+```ts
+const layers = {
+  background: new PIXI.Container(),
+  world:      new PIXI.Container(),
+  entities:   new PIXI.Container(),
+  fx:         new PIXI.Container(),
+  ui:         new PIXI.Container(),
+};
+Object.values(layers).forEach(l => app.stage.addChild(l));
+```
+- Never use magic z-index values — use explicit layer containers.
+
+---
+
+## Asset Management
+- Store all assets in `/public/assets/` with subfolders: `sprites/`, `audio/`, `fonts/`, `data/`.
+- Define an asset manifest in `/src/assets/manifest.ts`:
+```ts
+export const MANIFEST = {
+  bundles: [
+    { name: 'game', assets: [{ alias: 'hero', src: 'assets/sprites/hero.json' }] }
+  ]
+};
+```
+- Load via `PIXI.Assets.init({ manifest: MANIFEST })` then `PIXI.Assets.loadBundle('game')`.
+
+---
+
+## UI & Design Principles
+- UI elements are PixiJS `Container`s — not DOM elements — unless HTML overlays are explicitly required.
+- Use `PIXI.Text` with `PIXI.TextStyle` for all in-canvas text. Predefine text styles as constants.
+- For rich/responsive UI, prefer `@pixi/ui` components or build custom ones.
+- Commit to a visual identity: consistent color palette (defined as constants), consistent corner radii, shadow style, and font.
+- Animate UI with `gsap` (GSAP's PixiJS plugin) or a lightweight tween library — not manual lerping in the update loop unless performance-critical.
+
+---
+
+## Input Handling
+- Use PixiJS event system for interactive sprites: `sprite.eventMode = 'static'` and `sprite.on('pointerdown', handler)`.
+- For global keyboard input, use a dedicated `InputManager` class that maps `KeyboardEvent` codes to game actions.
+- Support both pointer (mouse/touch) and keyboard from day one.
+
+---
+
+## Debugging
+- In development, expose `app` and key managers to `window` for console access: `(window as any).__app = app`.
+- Use `PIXI.utils.TextureCache` to inspect loaded textures.
+- Enable PixiJS DevTools browser extension for display list inspection.
+- Log draw call counts via `app.renderer.runners` in dev builds.
+
+---
+
+## File Structure
+```
+src/
+├── assets/
+│   └── manifest.ts
+├── core/
+│   ├── App.ts           # PixiJS app init & bootstrap
+│   ├── SceneManager.ts
+│   ├── InputManager.ts
+│   └── AssetLoader.ts
+├── scenes/
+│   ├── BootScene.ts
+│   ├── MenuScene.ts
+│   └── GameScene.ts
+├── entities/
+│   └── Player.ts
+├── ui/
+│   └── HUD.ts
+├── utils/
+│   ├── Pool.ts
+│   └── math.ts
+└── main.ts
+```
+
+---
+
+## Don'ts
+- ❌ Don't use `PIXI.Graphics` for complex shapes rendered every frame — pre-render to a `RenderTexture` once.
+- ❌ Don't use DOM elements for game UI unless absolutely necessary (keep the renderer authoritative).
+- ❌ Don't mutate PixiJS objects inside event listeners without guards (check if object is destroyed).
+- ❌ Don't skip `.destroy()` — PixiJS has no GC for WebGL textures.
+- ❌ Don't use `PIXI.Sprite.from()` shorthand in production — go through `PIXI.Assets`.
+- ❌ Don't block the main thread during load — always use async/await with a loading screen.
+
+---
+
+## Versioning Note
+These rules target **PixiJS v8**. If using v7, note:
+- v7 uses `PIXI.Application` with options in the constructor (not `await app.init()`).
+- v7 uses `sprite.interactive = true` instead of `sprite.eventMode = 'static'`.
+- v8 removed `PIXI.utils` — use direct imports from `pixi.js`.

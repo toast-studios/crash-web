@@ -1,0 +1,231 @@
+---
+description: SOLID principle enforcement for all TypeScript classes and modules
+alwaysApply: true
+---
+
+# SOLID Principles
+
+Every class, module, and interface in this codebase must follow SOLID. These rules are based on real violations found in this project.
+
+---
+
+## S — Single Responsibility Principle
+
+A class must have **one reason to change**. If you can describe what a class does with "and", it has too many responsibilities.
+
+### Hard Limits
+- **Max ~300 lines per class file.** If a file exceeds this, it almost certainly violates SRP — decompose it.
+- **Constructors must not exceed ~50 lines.** Complex setup belongs in dedicated builder/factory methods or extracted helper classes.
+
+### Decomposition Strategy
+
+When a screen or component grows beyond one responsibility, extract focused manager classes:
+
+| Responsibility | Extract To | Example |
+|---|---|---|
+| Socket event wiring | `ScreenEventHandler` | `GameScreenEventHandler` listens and dispatches |
+| FTUE pointer/tutorial logic | `FTUEController` | Owns pointer lifecycle, localStorage checks |
+| Animation orchestration | `AnimationController` | Sequences GSAP tweens, handles `onComplete` chains |
+| Timer management | `TimerManager` | Owns `setTimeout`/`setInterval`, handles cleanup |
+| Game state tracking | `GameStateManager` | Owns state object, exposes state queries |
+
+### Anti-Pattern — God Class (DO NOT)
+
+```ts
+// BAD: Screen does layout + socket events + FTUE + timers + partner branching
+class GameScreen extends Container {
+  // 35 instance fields, 1100 lines, 40+ methods
+  constructor(data: StoreData) {
+    super();
+    // 200 lines of initialization...
+  }
+}
+```
+
+### Correct Pattern
+
+```ts
+// GOOD: Screen delegates to focused managers
+class GameScreen extends Container {
+  private eventHandler: GameScreenEventHandler;
+  private ftueController: FTUEController;
+  private animationController: GameAnimationController;
+  private timerManager: TimerManager;
+
+  constructor(deps: GameScreenDeps) {
+    super();
+    this.eventHandler = deps.eventHandler;
+    this.ftueController = deps.ftueController;
+    // Screen only handles layout and delegates behavior
+  }
+}
+```
+
+### Known Violations to Fix
+- `screens/GameScreen.ts` — layout + socket events + FTUE + timers + animation + partner branching
+- `screens/TournamentGameScreen.ts` — same problem, plus tournament-specific logic
+- `screens/NewMatchMakingScreen.ts` — 4-phase animation state machine + socket events + timer + layout
+- `components/LobbySelection.ts` — filtering + scrolling + currency logic + layout + animations
+- `network/eventListeners.ts` — network event routing + PixiJS overlay rendering + game state tracking
+
+### Rule for `network/` Layer
+Files in `network/` must NEVER create or manage PixiJS display objects (`Container`, `Graphics`, `Text`, `Sprite`). The network layer handles data only. If a socket event needs to trigger UI, it must emit a typed event or call a callback — never import UI components directly.
+
+---
+
+## O — Open/Closed Principle
+
+Classes should be **open for extension, closed for modification**. Adding a new variant (partner, game mode, phase) must not require editing existing shared code.
+
+### Partner Branching Rule
+
+**NEVER** write this:
+
+```ts
+// BAD: Every new partner modifies this file
+if (CURRENT_PARTNER === PARTNER_ID.bt) {
+  socketManager.disconnect();
+  return;
+}
+if (CURRENT_PARTNER === PARTNER_ID.gs || CURRENT_PARTNER === PARTNER_ID.em) {
+  navigation.goBackToLobby(true);
+  return;
+}
+```
+
+**ALWAYS** use the Strategy pattern:
+
+```ts
+// GOOD: New partner = new strategy class, zero changes to GameScreen
+const behavior = getPartnerBehavior(CURRENT_PARTNER);
+behavior.onGameEnd(context);
+```
+
+See `partner-architecture.mdc` for the full pattern.
+
+### Game Mode Variants
+
+When Duel and Tournament modes share behavior, extract it to a **shared base class or mixin** — never duplicate entire files.
+
+```ts
+// GOOD: Shared base, mode-specific overrides
+abstract class BaseGameScreen<TPlayerBar extends IProfileBar> extends Container {
+  protected abstract createPlayerBar(): TPlayerBar;
+  protected abstract createOpponentBar(): IProfileBar;
+  // Shared: event wiring, FTUE, animation, layout
+}
+
+class DuelGameScreen extends BaseGameScreen<PlayerProfileBar> { /* overrides only */ }
+class TournamentGameScreen extends BaseGameScreen<TournamentPlayerProfileBar> { /* overrides only */ }
+```
+
+---
+
+## L — Liskov Substitution Principle
+
+Subclasses must be substitutable for their base class without breaking behavior.
+
+### Inheritance Rules
+- Never duplicate a class to make a variant. Extract a shared abstract base and extend it.
+- Use **generics** when the only difference between two parallel classes is a type parameter (e.g., profile bar type).
+- If a subclass overrides a method and changes its contract (e.g., ignores a parameter, throws where base doesn't), refactor the hierarchy.
+
+### Known Violations
+- `GameScreen` / `TournamentGameScreen` — parallel classes sharing ~70% code, no shared base
+- `PhaseOne` / `TournamentPhaseOne` — identical logic, different profile bar types
+- `PhaseTwo` / `TournamentPhaseTwo` — same pattern
+
+### Fix Pattern for Phases
+
+```ts
+// GOOD: Generic base phase, concrete types only differ in profile bar
+abstract class BasePhaseOne<TPlayerBar extends IProfileBar, TOpponentBar extends IProfileBar> extends Container {
+  constructor(deps: PhaseOneDeps<TPlayerBar, TOpponentBar>) { ... }
+  // All shared logic lives here
+}
+
+class DuelPhaseOne extends BasePhaseOne<PlayerProfileBar, OpponentProfileBar> {}
+class TournamentPhaseOne extends BasePhaseOne<TournamentPlayerProfileBar, DealerProfileBar> {}
+```
+
+---
+
+## I — Interface Segregation Principle
+
+No class should be forced to depend on methods or properties it doesn't use.
+
+### Rules
+- **Split fat types.** If a type has optional fields that only apply to one mode, split it into focused interfaces.
+- **One interface per concern.** Socket event handlers, profile bars, and state objects each get their own interface.
+- **Consumers import only what they need.** A phase class should receive a `PhaseState` interface, not the entire `StoreData`.
+
+### Known Violation — `StoreData`
+
+```ts
+// BAD: Fat type mixing duel + tournament concerns
+type StoreData = {
+  gameUserId: string;
+  matchId: string;
+  // ... 15+ properties, half are optional tournament-only fields
+  currentRound?: number;
+  totalRounds?: number;
+  roundState?: ROUND_STATE;
+  leaderboard?: Array<...>;
+};
+```
+
+```ts
+// GOOD: Focused interfaces
+interface BaseGameState { gameUserId: string; matchId: string; gameState: GAME_STATE; }
+interface DuelGameState extends BaseGameState { players: DuelPlayers; }
+interface TournamentGameState extends BaseGameState { currentRound: number; totalRounds: number; leaderboard: LeaderboardEntry[]; }
+```
+
+---
+
+## D — Dependency Inversion Principle
+
+High-level modules must not depend on low-level modules. Both should depend on abstractions.
+
+### Rules
+- **No direct singleton imports in screen/phase classes.** Pass dependencies via constructor as interfaces.
+- **Define interfaces for all services:** `ISocketManager`, `INavigator`, `IApiClient`, `IAudioManager`, `ILogger`.
+- **Module-level singletons are allowed** only at the composition root (entry point / factory). They must implement an interface and be injected into consumers.
+
+### Anti-Pattern (DO NOT)
+
+```ts
+// BAD: Direct imports of concrete singletons
+import { socketManager } from "../network/SocketManager";
+import { navigation } from "../utils/navigation";
+import { apiClient } from "../network/apis";
+import { Logger } from "../utils/logger";
+
+class GameScreen extends Container {
+  constructor(data: StoreData) {
+    socketManager.on(EVENTS.TURN_INFO, this.handleTurnInfo);
+    // Untestable — can't mock socketManager
+  }
+}
+```
+
+### Correct Pattern
+
+```ts
+// GOOD: Dependencies injected as interfaces
+interface GameScreenDeps {
+  socket: ISocketManager;
+  navigator: INavigator;
+  logger: ILogger;
+}
+
+class GameScreen extends Container {
+  constructor(private deps: GameScreenDeps, data: StoreData) {
+    deps.socket.on(EVENTS.TURN_INFO, this.handleTurnInfo);
+    // Testable — pass mock implementations
+  }
+}
+```
+
+### Network Layer Boundary
+`SocketManager` must NEVER import UI components (`InfoPopup`, `navigation`). When disconnection occurs, `SocketManager` should emit an event or invoke a callback provided at construction time. The UI layer registers a handler that shows the popup.
