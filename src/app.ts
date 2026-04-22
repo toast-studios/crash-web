@@ -52,34 +52,17 @@ export async function initApp() {
     window.addEventListener("resize", () => resizeWindowResolution(app));
     resizeWindowResolution(app);
 
-    // Load basic assets
-    dispatchProgress("bundles", 40, "Loading basic assets...");
+    // Load fonts and asset manifest in parallel (independent operations)
+    dispatchProgress("bundles", 40, "Loading fonts and assets...");
+    await Promise.all([initFonts(), initAssets()]);
 
-    // Initialize fonts
-    dispatchProgress("bundles", 52, "Loading fonts...");
-    await initFonts();
-
-    // Initialize lottie animations
+    // Initialize lottie animations (needed immediately for gameplay)
     dispatchProgress("bundles", 55, "Initializing animations...");
     initLottie();
 
-    await initAssets();
-
-    // Load game bundles
-    const bundleIds = ["common", "game", "player-profile"];
-    for (let i = 0; i < bundleIds.length; i++) {
-      const bundleId = bundleIds[i];
-      const bundleProgress = 58 + (i / bundleIds.length) * 25; // 58% to 83%
-
-      dispatchProgress("bundles", bundleProgress, `Loading assets...`);
-
-      try {
-        await loadBundles(bundleId);
-        Logger.info(`Bundle ${bundleId} loaded successfully`);
-      } catch (err) {
-        Logger.error(`Failed to load bundle ${bundleId}:`, err);
-      }
-    }
+    // Load all game bundles in a single batched call
+    dispatchProgress("bundles", 58, "Loading assets...");
+    await loadBundles(["common", "game", "player-profile"]);
 
     dispatchProgress("bundles", 83, "All assets loaded successfully!");
     await import("./scripts/app.init"); //todo: remove in prod build

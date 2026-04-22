@@ -87,12 +87,16 @@ export async function initAssets() {
 
 export async function initFonts() {
   try {
-    const pridiFont = new FontFaceObserver(FONTS.PRIMARY);
-    const interFont = new FontFaceObserver(FONTS.SECONDARY);
-    await pridiFont.load(null, 10000);
-    await interFont.load(null, 10000);
-    Logger.info("Pridi and Inter has loaded successfully");
+    const alumniSans = new FontFaceObserver(FONTS.PRIMARY);
+    const pridi = new FontFaceObserver(FONTS.SECONDARY);
+    const inter = new FontFaceObserver(FONTS.THIRD);
+    await Promise.all([
+      alumniSans.load(null, 10000),
+      pridi.load(null, 10000),
+      inter.load(null, 10000),
+    ]);
+    Logger.info("All fonts loaded successfully");
   } catch (e) {
-    Logger.error("Failed to load Pridi or Inter fonts:", e);
+    Logger.error("Failed to load fonts:", e);
   }
 }
